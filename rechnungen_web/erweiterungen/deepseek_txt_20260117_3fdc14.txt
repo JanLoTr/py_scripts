@@ -1,7 +1,0 @@
-# Groq API
-groq>=0.3.0
-
-# Für lokale Alternativen (falls Groq nicht verfügbar)
-transformers>=4.35.0
-torch>=2.0.0
-sentence-transformers>=2.2.0
