@@ -1,0 +1,61 @@
+{
+  "input_dir": "C:/Users/DeinName/Downloads",
+  "output_dir": "C:/Users/DeinName/Documents/Organized",
+  
+  "category_granularity": "mittel",
+  "max_categories": {
+    "wenig": 5,
+    "mittel": 15,
+    "viel": 30
+  },
+  
+  "duplicate_handling": "ask",
+  "similarity_threshold": 0.95,
+  
+  "rename_files": true,
+  "naming_scheme": "descriptive",
+  "auto_describe_images": true,
+  
+  "detect_aesthetic_files": true,
+  "aesthetic_categories": ["inspiration", "schön", "lustig", "kunst", "design"],
+  "min_aesthetic_score": 0.7,
+  
+  "ai": {
+    "provider": "groq",
+    "groq_api_key": "",
+    "groq_model": "mixtral-8x7b-32768",
+    "max_tokens": 1000,
+    "temperature": 0.3,
+    "use_groq_for_categorization": true,
+    "use_groq_for_renaming": false,
+    "use_groq_for_images": false
+  },
+  
+  "image_analysis": {
+    "use_yolo": true,
+    "yolo_model": "yolov8n.pt",
+    "detect_objects": true,
+    "detect_colors": true,
+    "detect_faces": true,
+    "detect_emotions": false,
+    "describe_scene": true
+  },
+  
+  "interactive": true,
+  "preview_before_move": true,
+  "preserve_folder_structure": true,
+  "clean_filenames": true,
+  
+  "supported_extensions": [
+    ".pdf", ".docx", ".doc", ".txt", ".md", ".json", ".csv", ".xlsx", ".xls",
+    ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif", ".webp",
+    ".py", ".c", ".cpp", ".java", ".js", ".ts", ".html", ".css", ".sql",
+    ".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac"
+  ],
+  
+  "paths": {
+    "tesseract": "C:/Program Files/Tesseract-OCR/tesseract.exe",
+    "poppler": "C:/poppler/Library/bin",
+    "spacy_model": "de_core_news_sm"
+  }
+}

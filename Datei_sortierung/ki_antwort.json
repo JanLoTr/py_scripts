@@ -1,0 +1,489 @@
+{
+  "results": [
+    {
+      "filename": "00000004-PHOTO-2025-01-04-20-56-01.jpg",
+      "category": "Militär / Stellungsuntersuchung",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000005-PHOTO-2025-01-06-11-23-56.jpg",
+      "category": "Militär / Einberufung",
+      "confidence": 0.90
+    },
+    {
+      "filename": "00000008-PHOTO-2025-01-17-09-03-20.jpg",
+      "category": "Personaldokument / Führerschein",
+      "confidence": 0.95
+    },
+    {
+      "filename": "00000009-PHOTO-2025-01-17-09-03-20.jpg",
+      "category": "Unbestimmtes / Unleserlich",
+      "confidence": 0.20
+    },
+    {
+      "filename": "00000010-PHOTO-2025-01-30-11-06-52.jpg",
+      "category": "Unbestimmtes / Unleserlich",
+      "confidence": 0.15
+    },
+    {
+      "filename": "00000011-PHOTO-2025-01-30-11-07-24.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000012-Was sind anders Kosten und Zusatzkosten.docx",
+      "category": "BWL / Kostenrechnung",
+      "confidence": 0.98
+    },
+    {
+      "filename": "00000013-Was sind anders Kosten und Zusatzkosten.pdf",
+      "category": "BWL / Kostenrechnung",
+      "confidence": 0.98
+    },
+    {
+      "filename": "00000014-PHOTO-2025-02-14-12-54-28.jpg",
+      "category": "Ernährung / Sportnahrung",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000022-mathe.sm",
+      "category": "Unbekannter Dateityp",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000023-widerstands_berechnung_2.sm",
+      "category": "Unbekannter Dateityp",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000024-Arbeitsauftrag Statistik.pdf",
+      "category": "Schule / Arbeitsauftrag",
+      "confidence": 0.85
+    },
+    {
+      "filename": "00000025-nochmehrtodos.txt",
+      "category": "Persönliche Notizen / To-Do",
+      "confidence": 0.80
+    },
+    {
+      "filename": "00000028-PHOTO-2025-03-12-12-28-11.jpg",
+      "category": "Druckdienstleistung / Bestellung",
+      "confidence": 0.90
+    },
+    {
+      "filename": "00000029-PHOTO-2025-03-12-12-28-31.jpg",
+      "category": "Druckdienstleistung / Buchbindung",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000030-PHOTO-2025-03-12-12-40-27.jpg",
+      "category": "Druckdienstleistung / Bestellung",
+      "confidence": 0.85
+    },
+    {
+      "filename": "00000031-PHOTO-2025-03-13-22-12-53.jpg",
+      "category": "Unbestimmtes / Fragment",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000032-PHOTO-2025-03-15-19-26-49.jpg",
+      "category": "Deutschunterricht / Literatur",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000033-PHOTO-2025-03-15-19-26-49.jpg",
+      "category": "Deutschunterricht / Literatur",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000034-PHOTO-2025-03-15-19-26-49.jpg",
+      "category": "Deutschunterricht / Literatur",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000035-PHOTO-2025-03-15-19-26-49.jpg",
+      "category": "Deutschunterricht / Literatur",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000036-PHOTO-2025-03-22-14-11-52.jpg",
+      "category": "Website / Holzmaschinen",
+      "confidence": 0.70
+    },
+    {
+      "filename": "00000052-KL20_PT1_HTL_AMT_AB_H2_AU_01.pdf",
+      "category": "Schule / Maturaprüfung Mathematik",
+      "confidence": 0.95
+    },
+    {
+      "filename": "00000059-linefollower.py.pdf",
+      "category": "Programmierung / Robotik ROS2",
+      "confidence": 0.96
+    },
+    {
+      "filename": "00000060-linefollower.launch.py.pdf",
+      "category": "Programmierung / Robotik ROS2",
+      "confidence": 0.96
+    },
+    {
+      "filename": "00000062-Jan_Traußnigg_Motivationsschreiben.docx",
+      "category": "Bewerbung / Motivationsschreiben",
+      "confidence": 0.98
+    },
+    {
+      "filename": "00000063-Jan_Traußnigg_Lebenslauf.pdf",
+      "category": "Bewerbung / Lebenslauf",
+      "confidence": 0.99
+    },
+    {
+      "filename": "00000064-Scan 24 Mai 25 135806.pdf",
+      "category": "Schule / Jahreszeugnis",
+      "confidence": 0.97
+    },
+    {
+      "filename": "00000065-Scan 24 Mai 25 135806.pdf",
+      "category": "Schule / Jahreszeugnis",
+      "confidence": 0.97
+    },
+    {
+      "filename": "00000067-Maturavorbereitung_Informatik_05272025.docx",
+      "category": "Schule / Maturavorbereitung Informatik",
+      "confidence": 0.94
+    },
+    {
+      "filename": "00000068-Maturavorbereitung_elektrotechnik.docx",
+      "category": "Schule / Maturavorbereitung Elektrotechnik",
+      "confidence": 0.94
+    },
+    {
+      "filename": "00000069-Maturavorbereitung_Informatik_05272025.docx",
+      "category": "Schule / Maturavorbereitung Informatik",
+      "confidence": 0.94
+    },
+    {
+      "filename": "00000070-Elektrotechnik_Vorbereitung.docx",
+      "category": "Schule / Maturavorbereitung Elektrotechnik",
+      "confidence": 0.94
+    },
+    {
+      "filename": "00000071-PHOTO-2025-05-31-12-41-48.jpg",
+      "category": "Diplomarbeit / Titel",
+      "confidence": 0.80
+    },
+    {
+      "filename": "00000072-PHOTO-2025-05-31-12-41-48.jpg",
+      "category": "Diplomarbeit / Titel",
+      "confidence": 0.80
+    },
+    {
+      "filename": "00000073-20.5.2025.docx",
+      "category": "Schule / Maturavorbereitung Informatik",
+      "confidence": 0.93
+    },
+    {
+      "filename": "00000074-Informatik-Mitschrift-Zusammenfassung.docx",
+      "category": "Schule / Maturavorbereitung Informatik",
+      "confidence": 0.93
+    },
+    {
+      "filename": "00000075-Informatik-Mitschrift-Zusammenfassung.docx",
+      "category": "Schule / Maturavorbereitung Informatik",
+      "confidence": 0.93
+    },
+    {
+      "filename": "00000076-Beispielcode.docx",
+      "category": "Programmierung / Java Security",
+      "confidence": 0.91
+    },
+    {
+      "filename": "00000079-Scan 19 Juni 25 213012.pdf",
+      "category": "Personaldokument / Bankkarte",
+      "confidence": 0.90
+    },
+    {
+      "filename": "00000088-campus02.zip",
+      "category": "Unbekannter Dateityp / Archiv",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000089-Jan_Traußnigg_Lebenslauf - Copy.docx",
+      "category": "Bewerbung / Lebenslauf",
+      "confidence": 0.99
+    },
+    {
+      "filename": "00000090-Maturazeugnis.pdf",
+      "category": "Schule / Reife- und Diplomprüfung",
+      "confidence": 0.99
+    },
+    {
+      "filename": "00000091-Schul Semesterzeugnis.pdf",
+      "category": "Schule / Zeugnisse",
+      "confidence": 0.97
+    },
+    {
+      "filename": "00000092-Cambridge Certificate .pdf",
+      "category": "Zertifikat / Sprachprüfung Englisch",
+      "confidence": 0.98
+    },
+    {
+      "filename": "00000093-KNAPP Gehalt .pdf",
+      "category": "Arbeit / Gehaltsabrechnung",
+      "confidence": 0.96
+    },
+    {
+      "filename": "00000094-Geburtsurkunde Staatsbu_êrgerschaft.pdf",
+      "category": "Personaldokument / Geburtsurkunde",
+      "confidence": 0.99
+    },
+    {
+      "filename": "00000095-Diplomarbeitsplakat_TdoT_ROB.pptx",
+      "category": "Unbekannter Dateityp",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000096-Reisepass.pdf",
+      "category": "Personaldokument / Reisepass",
+      "confidence": 0.98
+    },
+    {
+      "filename": "00000098-PHOTO-2025-09-19-15-19-34.jpg",
+      "category": "Studium / FH Studienplan",
+      "confidence": 0.85
+    },
+    {
+      "filename": "00000114-AUDIO-2025-09-22-12-02-18.opus",
+      "category": "Unbekannter Dateityp / Audio",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000117-PHOTO-2025-09-30-11-53-25.jpg",
+      "category": "Unbestimmtes / Unleserlich",
+      "confidence": 0.15
+    },
+    {
+      "filename": "00000118-PHOTO-2025-09-30-11-55-50.jpg",
+      "category": "Unbestimmtes / Unleserlich",
+      "confidence": 0.15
+    },
+    {
+      "filename": "00000133-PHOTO-2025-10-14-21-26-19.jpg",
+      "category": "Elektrotechnik / Netzwerkanalyse",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000139-Anerkennung_WK_Traußnigg.pdf",
+      "category": "Studium / Anerkennungsantrag",
+      "confidence": 0.95
+    },
+    {
+      "filename": "00000148-AT022081500023955511_2025002.pdf",
+      "category": "Finanzen / Kontoauszug",
+      "confidence": 0.97
+    },
+    {
+      "filename": "00000152-PHOTO-2025-11-28-22-26-59.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000153-PHOTO-2025-11-28-22-27-12.jpg",
+      "category": "Unbestimmtes / Unleserlich",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000154-PHOTO-2025-11-28-22-29-42.jpg",
+      "category": "Unbestimmtes / Fragment",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000157-PHOTO-2025-12-01-21-45-23.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000158-PHOTO-2025-12-01-21-45-49.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000159-PHOTO-2025-12-01-21-46-07.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000171-Fragenkatalog Rettungssanitäterausbildung Juli 2022.pdf",
+      "category": "Ausbildung / Rettungssanitäter",
+      "confidence": 0.96
+    },
+    {
+      "filename": "00000172-PHOTO-2025-12-09-13-03-36.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000173-PHOTO-2025-12-09-20-55-04.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000174-PHOTO-2025-12-09-20-55-08.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000223-reflexion.txt",
+      "category": "Persönliches Tagebuch / Reflexion",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000228-PHOTO-2026-01-10-15-13-30.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000229-PHOTO-2026-01-10-15-14-26.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000230-PHOTO-2026-01-10-15-18-31.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000231-PHOTO-2026-01-10-15-20-43.jpg",
+      "category": "Einkauf / Tankbeleg",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000232-PHOTO-2026-01-10-15-23-02.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000233-PHOTO-2026-01-10-15-29-32.jpg",
+      "category": "Unbestimmtes / Leer",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000234-PHOTO-2026-01-10-15-45-44.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000236-reflexion.txt",
+      "category": "Persönliches Tagebuch / Reflexion",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000237-reflexion2.txt",
+      "category": "Persönliches Tagebuch / Reflexion",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000238-reflexion3.txt",
+      "category": "Persönliches Tagebuch / Reflexion",
+      "confidence": 0.92
+    },
+    {
+      "filename": "00000239-PHOTO-2026-01-11-13-04-31.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000240-PHOTO-2026-01-11-13-11-51.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000241-PHOTO-2026-01-11-13-16-49.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000244-PHOTO-2026-01-11-14-45-37.jpg",
+      "category": "Öffentlicher Verkehr / Fahrradmitnahme",
+      "confidence": 0.82
+    },
+    {
+      "filename": "00000247-PHOTO-2026-01-11-15-56-23.jpg",
+      "category": "Unbestimmtes / Fragment",
+      "confidence": 0.10
+    },
+    {
+      "filename": "00000248-PHOTO-2026-01-11-15-57-50.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000249-PHOTO-2026-01-11-15-59-13.jpg",
+      "category": "Unbestimmtes / Unleserlich",
+      "confidence": 0.15
+    },
+    {
+      "filename": "00000250-PHOTO-2026-01-11-15-59-56.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000251-PHOTO-2026-01-11-19-08-58.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000252-PHOTO-2026-01-11-22-22-31.jpg",
+      "category": "Telekommunikation / SIM-Aktivierung",
+      "confidence": 0.84
+    },
+    {
+      "filename": "00000254-PHOTO-2026-01-11-22-24-14.jpg",
+      "category": "Einkauf / Tankbeleg",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000255-PHOTO-2026-01-11-22-25-13.jpg",
+      "category": "Einkauf / Tankbeleg",
+      "confidence": 0.88
+    },
+    {
+      "filename": "00000256-PHOTO-2026-01-11-22-25-42.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000257-PHOTO-2026-01-11-22-27-11.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000258-PHOTO-2026-01-11-22-27-11.jpg",
+      "category": "Einkauf / Apotheke",
+      "confidence": 0.90
+    },
+    {
+      "filename": "00000259-PHOTO-2026-01-11-22-28-05.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000260-PHOTO-2026-01-11-22-28-37.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000261-PHOTO-2026-01-11-22-34-31.jpg",
+      "category": "Einkauf / Kassenzettel",
+      "confidence": 0.86
+    },
+    {
+      "filename": "00000262-PHOTO-2026-01-11-22-35-17.jpg",
+      "category": "Einkauf / Apotheke",
+      "confidence": 0.90
+    },
+    {
+      "filename": "_chat.txt",
+      "category": "Persönliche Kommunikation / WhatsApp-Export",
+      "confidence": 0.95
+    }
+  ]
+}

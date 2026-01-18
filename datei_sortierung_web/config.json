@@ -1,0 +1,20 @@
+{
+    "input_dir": "C:/Users/DeinName/Downloads",
+    "output_dir": "C:/Users/DeinName/Documents/Organized",
+    "ai_provider": "groq",
+    "api_key": "", 
+    "interactive": true,
+    "preview_before_move": true,
+    "preserve_folder_structure": true,
+    "clean_filenames": true,
+    "supported_extensions": [
+      ".pdf", ".docx", ".doc",
+      ".txt", ".md", ".json", ".csv",
+      ".py", ".c", ".cpp", ".java", ".js", ".html", ".css",
+      ".jpg", ".jpeg", ".png", ".bmp", ".tiff",
+      ".xlsx", ".xls"
+    ],
+    "max_file_size_mb": 50,
+    "tesseract_path": "C:/Program Files/Tesseract-OCR/tesseract.exe",
+    "poppler_path": "C:/poppler/Library/bin"
+  }
