@@ -226,7 +226,7 @@ venv.bak/
 .env.production.local
 
 # Streamlit
-.streamlit/secrets.toml
+groq_test/.streamlit/secrets.toml
 
 # IDE
 .vscode/
