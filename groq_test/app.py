@@ -45,7 +45,9 @@ if prompt := st.chat_input("Wie kann ich helfen?"):
         try:
             # Streamen der Antwort
             stream = client.chat.completions.create(
-                model="mixtral-8x7b-32768",  # oder ein anderes Modell
+                # model="mixtral-8x7b-32768",  # oder ein anderes Modell
+                # model="llama3-8b-8192",
+                model="qwen/qwen3-32b",
                 messages=[
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages
