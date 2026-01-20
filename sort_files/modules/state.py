@@ -1,5 +1,7 @@
 # modules/state.py - Session State Management
 import streamlit as st
+import json
+import time  # <- Hinzufügen
 
 def init_session_state():
     """Initialisiert alle Session State Variablen"""
@@ -10,13 +12,12 @@ def init_session_state():
         'temp_dir': None,
         'renamed_files': [],
         'clean_filenames': True,
-        'replace_umlauts': False,  # Neue Option: Umlaute ersetzen?
+        'replace_umlauts': False,
         'skip_encrypted_zips': True,
         'move_executables': True,
         'api_key': "",
         'detail_level': "mittel",
         'max_files': 50,
-        # Download-Daten persistieren
         'download_categories_json': None,
         'download_files_json': None,
         'download_categories_filename': "kategorien.json",
