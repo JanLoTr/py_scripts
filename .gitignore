@@ -227,6 +227,7 @@ venv.bak/
 
 # Streamlit
 groq_test/.streamlit/secrets.toml
+*/.streamlit/secrets.toml
 
 # IDE
 .vscode/
