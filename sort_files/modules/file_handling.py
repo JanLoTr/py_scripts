@@ -1,4 +1,4 @@
-# modules/file_handling.py - Dateiverarbeitung
+# modules/file_handling.py - Dateiverarbeitung (korrigierte Namensbereinigung)
 import os
 import json
 import shutil
@@ -7,6 +7,7 @@ import zipfile
 import io
 import re
 import time
+import unicodedata
 from pathlib import Path
 import streamlit as st
 
@@ -91,35 +92,101 @@ class FileProcessor:
             st.error(f"ZIP-Fehler: {e}")
             return [], []
     
-    # -------------------- Dateinamen Bereinigung --------------------
+    # -------------------- VERBESSERTE DATEINAMEN BEREINIGUNG --------------------
     def clean_filename(self, filename):
-        """Bereinigt Dateinamen von Sonderzeichen"""
+        """Bereinigt Dateinamen von Sonderzeichen - ROBUSTE Version"""
         if not st.session_state.clean_filenames:
             return filename
         
-        # Entferne problematische Zeichen
-        cleaned = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        # Fall 1: Kodierungsprobleme (wie "TrauÃŸnigg")
+        if 'Ã' in filename:
+            try:
+                # Versuche UTF-8 Reparatur
+                filename_bytes = filename.encode('latin-1')
+                filename = filename_bytes.decode('utf-8')
+            except:
+                pass
         
-        # Ersetze Umlaute
-        replacements = {
-            'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
-            'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
-            'ß': 'ss'
-        }
+        # Unicode normalisieren
+        filename = unicodedata.normalize('NFKC', filename)
         
-        for old, new in replacements.items():
-            cleaned = cleaned.replace(old, new)
+        # Spezielle Ersetzungen für häufige Kodierungsprobleme
+        replacements = [
+            ('ÃŸ', 'ß'),  # UTF-8 Problem
+            ('Ã¼', 'ü'),
+            ('Ã¤', 'ä'),
+            ('Ã¶', 'ö'),
+            ('Ãœ', 'Ü'),
+            ('Ã„', 'Ä'),
+            ('Ã–', 'Ö'),
+            ('Ã©', 'é'),
+            ('Ã¨', 'è'),
+            ('Ã¡', 'á'),
+            ('Ã ', 'à'),
+            ('Ã±', 'ñ'),
+            ('Ã§', 'ç'),
+            ('â‚¬', '€'),
+            ('â€š', ','),
+            ('â€ž', '"'),
+            ('â€œ', '"'),
+            ('â€', "'"),
+            ('â€“', '-'),
+            ('â€”', '-'),
+            ('â€¢', '•'),
+            ('â€¦', '…'),
+        ]
         
-        # Bereinige
-        cleaned = re.sub(r'_+', '_', cleaned)
-        cleaned = cleaned.strip('._')
+        for old, new in replacements:
+            filename = filename.replace(old, new)
         
-        return cleaned if cleaned else "unnamed_file"
+        # Standard Sonderzeichen ersetzen
+        filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
+        
+        # Ersetze Umlaute (optional, kann deaktiviert werden)
+        if st.session_state.get('replace_umlauts', True):
+            umlaut_replacements = {
+                'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
+                'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+                'ß': 'ss',
+            }
+            for old, new in umlaut_replacements.items():
+                filename = filename.replace(old, new)
+        
+        # Entferne nicht-druckbare Zeichen
+        filename = ''.join(char for char in filename if char.isprintable())
+        
+        # Mehrfache Unterstriche reduzieren
+        filename = re.sub(r'_+', '_', filename)
+        
+        # Entferne führende/nachgestellte Punkte und Unterstriche
+        filename = filename.strip('._ ')
+        
+        # Stelle sicher, dass der Name nicht leer ist
+        if not filename:
+            return "unnamed_file"
+        
+        # Maximale Länge begrenzen (Windows: 255 Zeichen)
+        if len(filename) > 200:
+            name_part = filename[:150]
+            ext_part = ""
+            if '.' in filename:
+                name_part, ext_part = filename.rsplit('.', 1)
+                name_part = name_part[:150]
+                filename = f"{name_part}.{ext_part}"
+            else:
+                filename = name_part[:150]
+        
+        return filename
     
     def rename_files_in_directory(self, directory):
         """Benennt alle Dateien im Verzeichnis um"""
         renamed = []
-        for file_path in Path(directory).rglob("*"):
+        directory_path = Path(directory)
+        
+        if not directory_path.exists():
+            return renamed
+        
+        for file_path in directory_path.rglob("*"):
             if file_path.is_file():
                 old_name = file_path.name
                 new_name = self.clean_filename(old_name)
@@ -127,12 +194,20 @@ class FileProcessor:
                 if old_name != new_name:
                     new_path = file_path.parent / new_name
                     counter = 1
+                    
+                    # Vermeide Überschreibungen
                     while new_path.exists():
                         name_parts = new_name.rsplit('.', 1)
                         if len(name_parts) == 2:
-                            new_name_with_counter = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+                            base_name = name_parts[0]
+                            extension = name_parts[1]
+                            # Entferne bereits vorhandene Nummerierung
+                            base_name = re.sub(r'_\d+$', '', base_name)
+                            new_name_with_counter = f"{base_name}_{counter}.{extension}"
                         else:
-                            new_name_with_counter = f"{new_name}_{counter}"
+                            base_name = re.sub(r'_\d+$', '', new_name)
+                            new_name_with_counter = f"{base_name}_{counter}"
+                        
                         new_path = file_path.parent / new_name_with_counter
                         counter += 1
                     
@@ -157,30 +232,36 @@ class FileProcessor:
                 # Verschiebe in ausführbare Dateien Ordner
                 if st.session_state.move_executables and self.executables_dir:
                     try:
-                        target_path = self.executables_dir / file_path.name
+                        target_path = self.executables_dir / self.clean_filename(file_path.name)
                         shutil.copy2(file_path, target_path)
                     except:
                         pass
                 return f"AUSFÜHRBARE DATEI - NICHT VERARBEITET ({ext})"
             
             # Prüfe auf sehr große Dateien (>50MB)
-            file_size = file_path.stat().st_size
-            if file_size > 50 * 1024 * 1024:
-                # Verschiebe in nicht verarbeitet Ordner
-                if self.not_processed_dir:
-                    try:
-                        target_path = self.not_processed_dir / file_path.name
-                        shutil.copy2(file_path, target_path)
-                    except:
-                        pass
-                return f"DATEI ZU GROSS - NICHT VERARBEITET ({file_size//(1024*1024)} MB)"
+            try:
+                file_size = file_path.stat().st_size
+                if file_size > 50 * 1024 * 1024:
+                    # Verschiebe in nicht verarbeitet Ordner
+                    if self.not_processed_dir:
+                        try:
+                            target_path = self.not_processed_dir / self.clean_filename(file_path.name)
+                            shutil.copy2(file_path, target_path)
+                        except:
+                            pass
+                    return f"DATEI ZU GROSS - NICHT VERARBEITET ({file_size//(1024*1024)} MB)"
+            except:
+                file_size = 0
             
             # Programmiersprachen
-            code_extensions = [".py", ".java", ".cpp", ".c", ".js", ".html", ".css"]
+            code_extensions = [".py", ".java", ".cpp", ".c", ".js", ".html", ".css", ".php", ".rb", ".go", ".rs"]
             if ext in code_extensions:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read(3000)
-                    return f"Code ({ext[1:].upper()}):\n{content}"
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read(3000)
+                        return f"Code ({ext[1:].upper()}):\n{content}"
+                except:
+                    return f"Code-Datei ({ext})"
             
             # PDF
             elif ext == ".pdf":
@@ -191,9 +272,9 @@ class FileProcessor:
                             page_text = page.extract_text()
                             if page_text:
                                 text += f"\n--- Seite {i+1} ---\n{page_text[:800]}"
-                    return text.strip() or "PDF (kein Text)"
-                except:
-                    return "PDF-Datei"
+                    return text.strip() or "PDF (kein Text extrahierbar)"
+                except Exception as e:
+                    return f"PDF-Datei"
             
             # Word
             elif ext == ".docx":
@@ -205,12 +286,15 @@ class FileProcessor:
                     return "Word-Dokument"
             
             # Textdateien
-            elif ext in [".txt", ".md", ".csv", ".json"]:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    return f.read(2000).strip()
+            elif ext in [".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml"]:
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        return f.read(2000).strip()
+                except:
+                    return f"Textdatei ({ext})"
             
             # Bilder
-            elif ext in [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]:
+            elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif", ".webp", ".svg"]:
                 try:
                     img = Image.open(file_path)
                     if file_size < 2 * 1024 * 1024:  # < 2 MB
@@ -224,16 +308,32 @@ class FileProcessor:
                 except:
                     return f"Bilddatei ({ext})"
             
-            # Andere unterstützte Formate
-            elif ext in [".xlsx", ".pptx", ".mp3", ".mp4", ".zip"]:
-                return f"Datei ({ext})"
+            # Tabellen
+            elif ext in [".xlsx", ".xls", ".ods"]:
+                return f"Tabellendatei ({ext})"
             
-            # Nicht unterstützte Formate
+            # Präsentationen
+            elif ext in [".pptx", ".ppt", ".odp"]:
+                return f"Präsentation ({ext})"
+            
+            # Audio/Video
+            elif ext in [".mp3", ".wav", ".flac", ".aac", ".mp4", ".avi", ".mov", ".mkv", ".opus"]:
+                return f"Media-Datei ({ext})"
+            
+            # Archive (werden nicht extrahiert)
+            elif ext in [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"]:
+                return f"Archiv ({ext})"
+            
+            # Ausführbare Dateien (bereits oben behandelt)
+            elif ext in [".exe", ".msi", ".dmg", ".app", ".deb", ".rpm"]:
+                return f"Programmdatei ({ext})"
+            
+            # Sonstige
             else:
                 # Verschiebe in nicht verarbeitet Ordner
                 if self.not_processed_dir:
                     try:
-                        target_path = self.not_processed_dir / file_path.name
+                        target_path = self.not_processed_dir / self.clean_filename(file_path.name)
                         shutil.copy2(file_path, target_path)
                     except:
                         pass
@@ -243,7 +343,7 @@ class FileProcessor:
             # Verschiebe fehlerhafte Dateien
             if self.not_processed_dir:
                 try:
-                    target_path = self.not_processed_dir / file_path.name
+                    target_path = self.not_processed_dir / self.clean_filename(file_path.name)
                     shutil.copy2(file_path, target_path)
                 except:
                     pass
@@ -258,14 +358,46 @@ class FileProcessor:
         
         input_path = Path(input_dir)
         
+        if not input_path.exists():
+            st.error(f"Verzeichnis existiert nicht: {input_path}")
+            return {
+                "metadata": {
+                    "total_files": 0,
+                    "file_types": {},
+                    "skipped_files": ["Verzeichnis existiert nicht"],
+                    "processed_date": time.strftime("%Y-%m-%d %H:%M:%S")
+                },
+                "files": []
+            }
+        
         # Finde alle Dateien
         all_files = []
         for file_path in input_path.rglob("*"):
             if file_path.is_file():
+                # Überspringe sehr große Dateien (>100MB)
+                try:
+                    if file_path.stat().st_size > 100 * 1024 * 1024:
+                        skipped_files.append(f"{file_path.name} (zu groß >100MB)")
+                        continue
+                except:
+                    pass
+                
                 all_files.append(file_path)
         
         # Begrenze auf max_files
         all_files = all_files[:max_files]
+        
+        if not all_files:
+            st.warning("Keine Dateien im Verzeichnis gefunden")
+            return {
+                "metadata": {
+                    "total_files": 0,
+                    "file_types": {},
+                    "skipped_files": ["Keine Dateien gefunden"],
+                    "processed_date": time.strftime("%Y-%m-%d %H:%M:%S")
+                },
+                "files": []
+            }
         
         # Fortschrittsanzeige
         progress_bar = st.progress(0)
@@ -292,9 +424,10 @@ class FileProcessor:
                 files_data.append({
                     "filename": file_path.name,
                     "clean_name": self.clean_filename(file_path.name),
+                    "original_name": file_path.name,  # Originalname speichern
                     "path": str(file_path),
                     "extension": ext,
-                    "size_kb": file_path.stat().st_size // 1024,
+                    "size_kb": file_path.stat().st_size // 1024 if file_path.exists() else 0,
                     "is_processed": is_processed,
                     "text_preview": text[:1000] if isinstance(text, str) else str(text)[:1000]
                 })
@@ -311,7 +444,8 @@ class FileProcessor:
                 "total_files": len(files_data),
                 "file_types": dict(sorted(file_types.items())),
                 "skipped_files": skipped_files,
-                "processed_date": time.strftime("%Y-%m-%d %H:%M:%S")
+                "processed_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "renamed_files": st.session_state.get('renamed_files', [])
             },
             "files": files_data
         }
@@ -345,9 +479,8 @@ class FileProcessor:
             if filename in file_map and not file_map[filename].get("is_processed", True):
                 continue
             
-            # Kategorie bereinigen
-            safe_category = re.sub(r'[<>:"/\\|?*]', '-', category)
-            safe_category = safe_category.replace('/', '-')
+            # Kategorie bereinigen für Dateisystem
+            safe_category = self._clean_category_name(category)
             
             progress = (i + 1) / len(categories["results"])
             progress_bar.progress(progress)
@@ -371,14 +504,16 @@ class FileProcessor:
                     
                     target_file = target_category_dir / target_name
                     
-                    # Konflikt vermeiden
+                    # Existenz prüfen und ggf. nummerieren
                     counter = 1
                     while target_file.exists():
                         name_parts = target_name.rsplit('.', 1)
                         if len(name_parts) == 2:
-                            target_name = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+                            base_name = re.sub(r'_\d+$', '', name_parts[0])
+                            target_name = f"{base_name}_{counter}.{name_parts[1]}"
                         else:
-                            target_name = f"{target_name}_{counter}"
+                            base_name = re.sub(r'_\d+$', '', target_name)
+                            target_name = f"{base_name}_{counter}"
                         target_file = target_category_dir / target_name
                         counter += 1
                     
@@ -396,6 +531,20 @@ class FileProcessor:
         status_text.empty()
         
         return stats
+    
+    def _clean_category_name(self, category):
+        """Bereinigt Kategorienamen für Dateisystem"""
+        # Entferne problematische Zeichen
+        cleaned = re.sub(r'[<>:"/\\|?*]', '-', category)
+        cleaned = cleaned.replace('/', '-').replace('\\', '-')
+        
+        # Mehrfache Bindestriche reduzieren
+        cleaned = re.sub(r'-+', '-', cleaned)
+        
+        # Trimmen
+        cleaned = cleaned.strip('.-_ ')
+        
+        return cleaned if cleaned else "Unkategorisiert"
     
     # -------------------- Helper Functions --------------------
     def copy_not_processed_files(self, target_base_dir):
@@ -415,9 +564,20 @@ class FileProcessor:
                     relative_path = file_path.relative_to(self.not_processed_dir)
                     target_path = target_dir / relative_path
                     target_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Bereinige auch den Zielnamen
+                    if target_path.name != self.clean_filename(target_path.name):
+                        clean_name = self.clean_filename(target_path.name)
+                        target_path = target_path.parent / clean_name
+                    
                     shutil.copy2(file_path, target_path)
                     copied_count += 1
-                except:
-                    pass
+                except Exception as e:
+                    st.warning(f"Konnte {file_path.name} nicht kopieren: {e}")
         
         return copied_count
+    
+    def get_renamed_files_info(self):
+        """Gibt Informationen über umbenannte Dateien zurück"""
+        renamed = st.session_state.get('renamed_files', [])
+        return renamed
