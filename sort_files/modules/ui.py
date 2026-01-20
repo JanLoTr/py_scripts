@@ -1,6 +1,7 @@
 # modules/ui.py - Streamlit UI Komponenten
 import streamlit as st
 import json
+from pathlib import Path
 from modules.state import get_state, update_state
 from modules.ai_analysis import analyze_with_groq, create_fallback_categories
 
@@ -25,7 +26,7 @@ def render_ui(file_processor):
     st.markdown("---")
     
     # Vorschauen
-    _render_previews()
+    _render_previews(file_processor)
     
     # Footer
     st.markdown("---")
@@ -41,22 +42,24 @@ def _render_sidebar():
             "Groq API Key",
             type="password",
             value=get_state('api_key', ""),
-            on_change=lambda: update_state('api_key', st.session_state.get('api_key_input', ""))
+            key="api_key_input"
         )
-        update_state('api_key_input', api_key)
+        update_state('api_key', api_key)
         
         # Detaillevel
         detail_level = st.selectbox(
             "KI-Detailliertheit",
             ["wenig", "mittel", "viel"],
-            index=["wenig", "mittel", "viel"].index(get_state('detail_level', "mittel"))
+            index=["wenig", "mittel", "viel"].index(get_state('detail_level', "mittel")),
+            key="detail_level_select"
         )
         update_state('detail_level', detail_level)
         
         # Max Dateien
         max_files = st.slider(
             "Maximale Dateien",
-            10, 200, get_state('max_files', 50)
+            10, 200, get_state('max_files', 50),
+            key="max_files_slider"
         )
         update_state('max_files', max_files)
         
@@ -67,32 +70,44 @@ def _render_sidebar():
         with col_opt1:
             clean_names = st.checkbox(
                 "Namen bereinigen",
-                value=get_state('clean_filenames', True)
+                value=get_state('clean_filenames', True),
+                key="clean_names_checkbox"
             )
             update_state('clean_filenames', clean_names)
         
         with col_opt2:
             skip_zips = st.checkbox(
                 "ZIPs überspringen",
-                value=get_state('skip_encrypted_zips', True)
+                value=get_state('skip_encrypted_zips', True),
+                key="skip_zips_checkbox"
             )
             update_state('skip_encrypted_zips', skip_zips)
         
         # Ausführbare Dateien behandeln
         move_exec = st.checkbox(
             "Ausführbare Dateien in Extra-Ordner",
-            value=get_state('move_executables', True)
+            value=get_state('move_executables', True),
+            key="move_exec_checkbox"
         )
         update_state('move_executables', move_exec)
         
         st.markdown("---")
+        # In _render_sidebar() Funktion:
         st.info("""
-        **Unterstützt:**
-        • Code: .py, .java, .js
-        • Dokumente: .pdf, .docx, .txt
-        • Bilder: .jpg, .png, .webp
-        • Nicht verarbeitet: .exe, große Dateien
+        **Detaillevel erklärt:**
+        • **Wenig**: 5-8 breite Kategorien (z.B. "Dokumente", "Bilder")
+        • **Mittel**: 10-15 spezifischere Kategorien (z.B. "Finanzen/Rechnungen", "Schule/Mathe")
+        • **Viel**: 20+ sehr spezifische Kategorien (z.B. "Steuererklärung 2024", "Python-Projekt X")
+
+        **KI analysiert DateiINHALT, nicht Dateityp!**
         """)
+        # st.info("""
+        # **Unterstützt:**
+        # • Code: .py, .java, .js
+        # • Dokumente: .pdf, .docx, .txt
+        # • Bilder: .jpg, .png, .webp
+        # • Nicht verarbeitet: .exe, große Dateien
+        # """)
 
 def _render_step1(file_processor):
     """Rendert Schritt 1: Dateien"""
@@ -102,7 +117,8 @@ def _render_step1(file_processor):
         "Quelle",
         ["Hochladen", "Verzeichnis"],
         horizontal=True,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="upload_option_radio"
     )
     
     uploaded_files = None
@@ -113,17 +129,19 @@ def _render_step1(file_processor):
             "Dateien auswählen",
             accept_multiple_files=True,
             type=["pdf", "docx", "txt", "jpg", "png", "py", "java", "zip"],
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="file_uploader"
         )
     else:
         input_dir = st.text_input(
             "Verzeichnispfad",
             value="",
             placeholder="C:\\Pfad\\zum\\Ordner",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="directory_input"
         )
     
-    if st.button("📥 Dateien extrahieren", type="primary", use_container_width=True):
+    if st.button("📥 Dateien extrahieren", type="primary", use_container_width=True, key="extract_files_button"):
         _handle_file_extraction(file_processor, uploaded_files, input_dir)
 
 def _handle_file_extraction(file_processor, uploaded_files, input_dir):
@@ -211,7 +229,7 @@ def _render_step2(file_processor):
         detail_level = get_state('detail_level', "mittel")
         
         if api_key:
-            if st.button("🤖 Mit KI analysieren", type="primary", use_container_width=True):
+            if st.button("🤖 Mit KI analysieren", type="primary", use_container_width=True, key="analyze_ai_button"):
                 with st.spinner("KI analysiert..."):
                     categories = analyze_with_groq(
                         files_data["files"],
@@ -224,7 +242,7 @@ def _render_step2(file_processor):
         else:
             st.warning("API Key benötigt")
             
-            if st.button("📊 Einfache Kategorien", use_container_width=True):
+            if st.button("📊 Einfache Kategorien", use_container_width=True, key="simple_categories_button"):
                 with st.spinner("Erstelle Kategorien..."):
                     categories = create_fallback_categories(files_data["files"])
                     update_state('categories', categories)
@@ -250,10 +268,11 @@ def _render_step3(file_processor):
         target_dir = st.text_input(
             "Zielordner",
             value=default_target,
-            placeholder="Pfad für sortierte Dateien"
+            placeholder="Pfad für sortierte Dateien",
+            key="target_dir_input"
         )
         
-        if st.button("📁 Dateien sortieren", type="primary", use_container_width=True):
+        if st.button("📁 Dateien sortieren", type="primary", use_container_width=True, key="organize_files_button"):
             if not target_dir.strip():
                 st.warning("Bitte Zielordner angeben")
             else:
@@ -301,19 +320,19 @@ def _handle_file_organization(file_processor, target_dir):
             
             with col_dl1:
                 cat_json = json.dumps(categories, indent=2)
-                st.download_button("📥 Kategorien", cat_json, "kategorien.json")
+                st.download_button("📥 Kategorien", cat_json, "kategorien.json", key="download_categories")
             
             with col_dl2:
                 files_json = json.dumps(files_data, indent=2)
-                st.download_button("📥 Dateiliste", files_json, "dateiliste.json")
+                st.download_button("📥 Dateiliste", files_json, "dateiliste.json", key="download_files")
             
             # Cleanup
-            if st.button("🗑️ Temporäre Dateien löschen"):
+            if st.button("🗑️ Temporäre Dateien löschen", key="cleanup_button"):
                 file_processor.cleanup_temp_directory()
                 st.success("Aufgeräumt")
                 st.rerun()
 
-def _render_previews():
+def _render_previews(file_processor):
     """Rendert Datei- und Kategorievorschauen"""
     files_data = get_state('files_data')
     categories = get_state('categories')
@@ -359,4 +378,27 @@ def _render_file_preview(files):
                     preview = file_data["text_preview"]
                     if preview and len(preview) > 10:
                         if len(preview) > 150:
-                            preview = preview[:150]
+                            preview = preview[:150] + "..."
+                        st.text(preview)
+        
+        if len(files) > 5:
+            st.info(f"Und {len(files) - 5} weitere Dateien...")
+
+def _render_categories_preview(categories):
+    """Rendert Kategorievorschau"""
+    if not categories or "results" not in categories:
+        return
+    
+    with st.expander("📊 KI-Kategorisierung", expanded=False):
+        # Kategorie-Statistik
+        cat_stats = {}
+        for item in categories["results"]:
+            cat = item["category"]
+            cat_stats[cat] = cat_stats.get(cat, 0) + 1
+        
+        st.write(f"**{len(cat_stats)} Kategorien erkannt:**")
+        
+        # Top 5 Kategorien
+        top_cats = sorted(cat_stats.items(), key=lambda x: x[1], reverse=True)[:5]
+        for cat, count in top_cats:
+            st.write(f"• {cat}: {count} Dateien")
