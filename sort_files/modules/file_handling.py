@@ -266,35 +266,63 @@ class FileProcessor:
                     return f"Code-Datei ({ext})"
             
             # PDF - MEHR SEITEN (10 statt 2)
+            # elif ext == ".pdf":
+            #     try:
+            #         text = ""
+            #         with pdfplumber.open(file_path) as pdf:
+            #             total_pages = len(pdf.pages)
+            #             # Verarbeite bis zu 10 Seiten oder 25% der Seiten
+            #             max_pages = min(10, max(5, total_pages // 4))
+                        
+            #             for i, page in enumerate(pdf.pages[:max_pages]):
+            #                 page_text = page.extract_text()
+            #                 if page_text and page_text.strip():
+            #                     text += f"\n--- Seite {i+1}/{total_pages} ---\n{page_text[:1000]}"
+            #                 else:
+            #                     # OCR für gescannte Seiten
+            #                     try:
+            #                         images = convert_from_path(file_path, first_page=i+1, last_page=i+1)
+            #                         for img in images:
+            #                             ocr_text = pytesseract.image_to_string(img)
+            #                             if ocr_text.strip():
+            #                                 text += f"\n--- Seite {i+1}/{total_pages} [OCR] ---\n{ocr_text[:800]}"
+            #                     except:
+            #                         text += f"\n--- Seite {i+1}/{total_pages} [Bild/Scan] ---"
+                    
+            #         if text.strip():
+            #             return f"PDF ({total_pages} Seiten):{text}"
+            #         else:
+            #             return f"PDF-Datei ({total_pages} Seiten, kein Text extrahierbar)"
+            #     except Exception as e:
+            #         return f"PDF-Datei (Fehler: {str(e)[:100]})"
+                
             elif ext == ".pdf":
                 try:
                     text = ""
+                    # MEHR SEITEN ANALYSIEREN (bis zu 10 oder 25% der Seiten)
                     with pdfplumber.open(file_path) as pdf:
                         total_pages = len(pdf.pages)
-                        # Verarbeite bis zu 10 Seiten oder 25% der Seiten
-                        max_pages = min(10, max(5, total_pages // 4))
+                        # Analysiere bis zu 10 Seiten oder 25% der Seiten, je nachdem was kleiner ist
+                        pages_to_analyze = min(10, max(2, total_pages // 4))
                         
-                        for i, page in enumerate(pdf.pages[:max_pages]):
+                        for i, page in enumerate(pdf.pages[:pages_to_analyze]):
                             page_text = page.extract_text()
-                            if page_text and page_text.strip():
-                                text += f"\n--- Seite {i+1}/{total_pages} ---\n{page_text[:1000]}"
+                            if page_text:
+                                text += f"\n--- Seite {i+1}/{total_pages} ---\n{page_text[:800]}"
                             else:
-                                # OCR für gescannte Seiten
+                                # Versuche OCR für gescannte PDFs
                                 try:
                                     images = convert_from_path(file_path, first_page=i+1, last_page=i+1)
-                                    for img in images:
-                                        ocr_text = pytesseract.image_to_string(img)
-                                        if ocr_text.strip():
-                                            text += f"\n--- Seite {i+1}/{total_pages} [OCR] ---\n{ocr_text[:800]}"
+                                    if images:
+                                        page_text = pytesseract.image_to_string(images[0])
+                                        if page_text.strip():
+                                            text += f"\n--- Seite {i+1}/{total_pages} (OCR) ---\n{page_text[:800]}"
                                 except:
-                                    text += f"\n--- Seite {i+1}/{total_pages} [Bild/Scan] ---"
+                                    pass
                     
-                    if text.strip():
-                        return f"PDF ({total_pages} Seiten):{text}"
-                    else:
-                        return f"PDF-Datei ({total_pages} Seiten, kein Text extrahierbar)"
+                    return text.strip() or "PDF (kein Text extrahierbar)"
                 except Exception as e:
-                    return f"PDF-Datei (Fehler: {str(e)[:100]})"
+                    return f"PDF-Datei (Fehler: {str(e)[:50]})"
             
             # Word
             elif ext == ".docx":
