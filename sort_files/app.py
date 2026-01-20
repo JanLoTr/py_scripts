@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 import zipfile
 import io
+import re
 
 # Groq Import für KI-Analyse
 from groq import Groq
@@ -29,16 +30,18 @@ st.set_page_config(
 # -------------------- Hilfsfunktionen --------------------
 def init_session_state():
     """Session State initialisieren"""
-    if 'files_data' not in st.session_state:
-        st.session_state.files_data = None
-    if 'categories' not in st.session_state:
-        st.session_state.categories = None
-    if 'processing_step' not in st.session_state:
-        st.session_state.processing_step = 1
-    if 'uploaded_files' not in st.session_state:
-        st.session_state.uploaded_files = []
-    if 'temp_dir' not in st.session_state:
-        st.session_state.temp_dir = None
+    defaults = {
+        'files_data': None,
+        'categories': None,
+        'processing_step': 1,
+        'uploaded_files': [],
+        'temp_dir': None,
+        'renamed_files': [],
+        'clean_filenames': True
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
 def create_temp_directory():
     """Temporäres Verzeichnis erstellen"""
@@ -50,7 +53,6 @@ def create_temp_directory():
 def cleanup_temp_directory():
     """Temporäres Verzeichnis aufräumen"""
     if st.session_state.temp_dir and st.session_state.temp_dir.exists():
-        import shutil
         shutil.rmtree(st.session_state.temp_dir)
         st.session_state.temp_dir = None
 
@@ -59,70 +61,138 @@ def extract_zip(file_bytes, extract_to):
     with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zip_ref:
         zip_ref.extractall(extract_to)
 
+def clean_filename(filename):
+    """Dateinamen bereinigen von Sonderzeichen"""
+    if not st.session_state.clean_filenames:
+        return filename
+    
+    # Entferne problematische Zeichen
+    cleaned = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    
+    # Ersetze Umlaute und Sonderzeichen
+    replacements = {
+        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
+        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+        'ß': 'ss', 'é': 'e', 'è': 'e',
+        'á': 'a', 'à': 'a', 'ó': 'o',
+        'ò': 'o', 'ú': 'u', 'ù': 'u'
+    }
+    
+    for old, new in replacements.items():
+        cleaned = cleaned.replace(old, new)
+    
+    # Mehrfache Unterstriche reduzieren
+    cleaned = re.sub(r'_+', '_', cleaned)
+    
+    # Trimme führende/nachgestellte Punkte/Unterstriche
+    cleaned = cleaned.strip('._')
+    
+    return cleaned if cleaned else filename
+
+def rename_files_in_directory(directory):
+    """Alle Dateien in einem Verzeichnis umbenennen"""
+    renamed = []
+    for file_path in Path(directory).rglob("*"):
+        if file_path.is_file():
+            old_name = file_path.name
+            new_name = clean_filename(old_name)
+            
+            if old_name != new_name:
+                new_path = file_path.parent / new_name
+                counter = 1
+                while new_path.exists():
+                    name_parts = new_name.rsplit('.', 1)
+                    if len(name_parts) == 2:
+                        new_name_with_counter = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+                    else:
+                        new_name_with_counter = f"{new_name}_{counter}"
+                    new_path = file_path.parent / new_name_with_counter
+                    counter += 1
+                
+                try:
+                    file_path.rename(new_path)
+                    renamed.append((old_name, new_path.name))
+                except:
+                    pass
+    
+    st.session_state.renamed_files = renamed
+    return renamed
+
 def extract_text_from_file(file_path):
     """Text aus verschiedenen Dateitypen extrahieren"""
     try:
         ext = file_path.suffix.lower()
         
+        # Programmiersprachen
+        if ext in [".py", ".java", ".cpp", ".c", ".h", ".hpp", ".js", 
+                  ".ts", ".html", ".css", ".php", ".rb", ".go", ".rs", 
+                  ".swift", ".kt", ".scala", ".sql", ".sh", ".bat", 
+                  ".ps1", ".yaml", ".yml", ".json", ".xml", ".csv"]:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read(10000)  # Erste 10.000 Zeichen
+                return f"Code-Datei ({ext}):\n{content}"
+        
         # PDF
-        if ext == ".pdf":
+        elif ext == ".pdf":
             text = ""
             try:
                 with pdfplumber.open(file_path) as pdf:
-                    for i, page in enumerate(pdf.pages[:5]):  # Nur erste 5 Seiten
+                    for i, page in enumerate(pdf.pages[:3]):  # Nur erste 3 Seiten
                         page_text = page.extract_text()
                         if page_text:
-                            text += page_text
-                        else:
-                            # OCR für gescannte PDFs
-                            try:
-                                images = convert_from_path(file_path, first_page=i+1, last_page=i+1)
-                                for img in images:
-                                    text += pytesseract.image_to_string(img)
-                            except:
-                                pass
+                            text += f"\n--- Seite {i+1} ---\n{page_text}"
             except:
-                # Fallback: OCR für gescannte PDFs
-                try:
-                    images = convert_from_path(file_path)
-                    for img in images[:5]:
-                        text += pytesseract.image_to_string(img)
-                except Exception as e:
-                    text = f"PDF-EXTRAKTION FEHLER: {str(e)}"
+                text = "PDF konnte nicht gelesen werden"
             return text.strip()
         
         # Word
         elif ext == ".docx":
-            doc = Document(file_path)
-            return "\n".join([p.text for p in doc.paragraphs if p.text]).strip()
+            try:
+                doc = Document(file_path)
+                paragraphs = [p.text for p in doc.paragraphs if p.text]
+                return "\n".join(paragraphs[:50])  # Erste 50 Absätze
+            except:
+                return "Word-Dokument (Inhalt nicht lesbar)"
         
         # Textdateien
-        elif ext in [".txt", ".md", ".csv", ".json", ".xml"]:
+        elif ext in [".txt", ".md", ".rtf", ".log"]:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f.read(5000).strip()  # Nur erste 5000 Zeichen
+                return f.read(5000).strip()
         
-        # Bilder
-        elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif"]:
+        # Bilder (inkl. WebP)
+        elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif", ".webp"]:
             try:
                 img = Image.open(file_path)
-                return pytesseract.image_to_string(img).strip()
+                # Konvertiere WebP zu RGB für Tesseract
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+                text = pytesseract.image_to_string(img)
+                return text.strip() or f"Bilddatei: {file_path.name} (kein Text erkannt)"
             except Exception as e:
-                return f"OCR-FEHLER: {str(e)}"
+                return f"Bilddatei: {file_path.name} (OCR Fehler: {str(e)})"
         
-        # PowerPoint (einfache Extraktion)
+        # PowerPoint
         elif ext in [".pptx", ".ppt"]:
-            return f"Präsentationsdatei: {file_path.name}"
+            return f"Präsentation: {file_path.name}"
         
-        # Excel (einfache Extraktion)
-        elif ext in [".xlsx", ".xls"]:
-            return f"Tabellendatei: {file_path.name}"
+        # Excel
+        elif ext in [".xlsx", ".xls", ".ods"]:
+            return f"Tabelle: {file_path.name}"
         
-        # Andere Dateitypen
+        # Audio/Video (Metadaten)
+        elif ext in [".mp3", ".wav", ".mp4", ".avi", ".mov", ".opus"]:
+            return f"Media-Datei: {file_path.name}"
+        
+        # Archiv
+        elif ext in [".zip", ".rar", ".7z", ".tar", ".gz"]:
+            return f"Archiv: {file_path.name}"
+        
+        # Sonstige
         else:
-            return f"Unterstützter Dateityp: {ext}"
+            return f"Datei: {file_path.name} (Typ: {ext})"
             
     except Exception as e:
-        return f"EXTRACTION_ERROR: {str(e)}"
+        return f"FEHLER beim Lesen: {str(e)}"
 
 def extract_all_files(input_dir, max_files=100):
     """Alle Dateien im Verzeichnis extrahieren"""
@@ -141,7 +211,7 @@ def extract_all_files(input_dir, max_files=100):
             # Fortschritt aktualisieren
             progress = (idx + 1) / min(len(all_files), max_files)
             progress_bar.progress(progress)
-            status_text.text(f"Verarbeite: {file_path.name} ({idx+1}/{min(len(all_files), max_files)})")
+            status_text.text(f"Verarbeite: {file_path.name[:30]}... ({idx+1}/{min(len(all_files), max_files)})")
             
             # Text extrahieren
             text = extract_text_from_file(file_path)
@@ -152,9 +222,10 @@ def extract_all_files(input_dir, max_files=100):
             
             files_data.append({
                 "filename": file_path.name,
+                "clean_name": clean_filename(file_path.name),
                 "path": str(file_path),
                 "extension": ext,
-                "text_preview": text[:2000] if isinstance(text, str) else str(text)[:2000]
+                "text_preview": text[:1500] if isinstance(text, str) else str(text)[:1500]
             })
     
     progress_bar.empty()
@@ -175,105 +246,145 @@ def analyze_with_groq(files_data, api_key, detail_level="mittel"):
     
     # Je nach Detaillevel unterschiedliche Prompt-Komplexität
     prompts = {
-        "wenig": "Analysiere kurz diese Dateien und gib Kategorien. Sehr kurze Kategorien.",
-        "mittel": "Analysiere diese Dateien sorgfältig. Gib sinnvolle, beschreibende Kategorien.",
-        "viel": "Tiefgehende Analyse jeder Datei. Detaillierte, spezifische Kategorien."
+        "wenig": "Kurze Analyse: 1-2 Wörter pro Kategorie. Schnelle Zuordnung.",
+        "mittel": "Normale Analyse: Beschreibende Kategorien mit 2-3 Wörtern.",
+        "viel": "Detaillierte Analyse: Spezifische Kategorien. Berücksichtige Dateiinhalt."
     }
     
     prompt = prompts.get(detail_level, prompts["mittel"])
     
-    # JSON-Format für Prompt
-    system_prompt = f"""Du bist ein Dokumenten-Analysesystem.
+    # Effizienterer Prompt für viele Dateien
+    system_prompt = f"""Du bist ein Datei-Kategorisierungs-Assistent.
 
 {prompt}
 
 Regeln:
-- Eine Kategorie pro Datei
-- Maximal 2-3 Wörter pro Kategorie
-- Antworte AUSSCHLIESSLICH im JSON-Format
+- Kategorisiere jede Datei basierend auf ihrem Inhalt
+- Nutze das Format: "Hauptkategorie / Unterkategorie"
+- Beispiele: "Finanzen / Rechnung", "Schule / Mathe-Aufgaben", "Code / Python-Skript"
+- Antworte NUR im JSON-Format
 
-Beispiel:
+Erwartetes JSON:
 {{
   "results": [
     {{
-      "filename": "rechnung.pdf",
-      "category": "Finanzen / Rechnung",
-      "confidence": 0.9
+      "filename": "dateiname.xyz",
+      "category": "Kategorie / Unterkategorie",
+      "confidence": 0.0-1.0
     }}
   ]
 }}
 
-Hier sind {len(files_data)} Dateien:"""
+Analysiere diese Dateien:"""
     
-    # Dateien für Prompt vorbereiten (nur erste 30 für Token-Limit)
-    files_for_prompt = files_data[:30]
+    # Begrenze die Anzahl der Dateien für den Prompt (Performance)
+    max_files_for_prompt = 50 if detail_level == "viel" else 100
+    files_for_prompt = files_data[:max_files_for_prompt]
+    
+    # Kürze die Vorschautexte für Tokens
+    shortened_files = []
+    for f in files_for_prompt:
+        shortened = f.copy()
+        if len(shortened['text_preview']) > 800:
+            shortened['text_preview'] = shortened['text_preview'][:800] + "..."
+        shortened_files.append(shortened)
     
     user_message = json.dumps({
-        "file_count": len(files_data),
-        "files": files_for_prompt
-    }, ensure_ascii=False, indent=2)
+        "instruction": f"Kategorisiere {len(files_data)} Dateien ({len(files_for_prompt)} im Detail)",
+        "files": shortened_files
+    }, ensure_ascii=False)
     
     try:
-        # Groq API aufrufen
         response = client.chat.completions.create(
-            model="llama3-8b-8192",  # Kosten-effizientes Modell
+            model="llama3-8b-8192",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
             ],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=0.2,
+            max_tokens=4000
         )
         
-        # JSON aus Antwort extrahieren
-        content = response.choices[0].message.content
-        content = content.strip()
+        content = response.choices[0].message.content.strip()
         
-        # JSON finden (kann mit Markdown-Codeblöcken kommen)
+        # JSON extrahieren
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
         
-        # JSON parsen
         result = json.loads(content)
         
         # Sicherstellen, dass alle Dateien eine Kategorie haben
         if "results" in result:
-            # Wenn weniger Kategorien als Dateien, ergänzen
-            if len(result["results"]) < len(files_data):
-                for i, file_data in enumerate(files_data):
-                    if i >= len(result["results"]):
-                        result["results"].append({
-                            "filename": file_data["filename"],
-                            "category": "Divers / Unsortiert",
-                            "confidence": 0.5
-                        })
+            # Fehlende Dateien ergänzen
+            processed_filenames = {r["filename"] for r in result["results"]}
+            for file_data in files_data:
+                if file_data["filename"] not in processed_filenames:
+                    # Einfache Kategorie basierend auf Dateityp
+                    ext = file_data["extension"]
+                    if ext in [".py", ".java", ".js"]:
+                        category = "Programmierung / Code"
+                    elif ext in [".jpg", ".png", ".webp"]:
+                        category = "Bilder / Fotos"
+                    elif ext == ".pdf":
+                        category = "Dokumente / PDF"
+                    else:
+                        category = "Divers / Unsortiert"
+                    
+                    result["results"].append({
+                        "filename": file_data["filename"],
+                        "category": category,
+                        "confidence": 0.6
+                    })
+            
             return result
         
     except Exception as e:
-        st.error(f"KI-Analyse Fehler: {str(e)}")
-        # Fallback: Einfache Kategorien basierend auf Dateiendung
+        st.error(f"KI-Analyse Fehler: {e}")
         return create_fallback_categories(files_data)
 
 def create_fallback_categories(files_data):
-    """Fallback-Kategorien erstellen"""
+    """Fallback-Kategorien basierend auf Dateityp"""
     results = []
     
-    extension_categories = {
-        ".pdf": "PDF Dokument",
-        ".docx": "Word Dokument",
-        ".txt": "Textdatei",
-        ".jpg": "Bild",
-        ".png": "Bild",
-        ".xlsx": "Excel Tabelle",
-        ".pptx": "Präsentation",
-        ".zip": "Archiv"
+    type_categories = {
+        # Programmierung
+        ".py": "Programmierung / Python",
+        ".java": "Programmierung / Java", 
+        ".js": "Programmierung / JavaScript",
+        ".html": "Web / HTML",
+        ".css": "Web / CSS",
+        ".cpp": "Programmierung / C++",
+        ".c": "Programmierung / C",
+        
+        # Dokumente
+        ".pdf": "Dokumente / PDF",
+        ".docx": "Dokumente / Word",
+        ".txt": "Dokumente / Text",
+        ".md": "Dokumente / Markdown",
+        
+        # Bilder
+        ".jpg": "Bilder / Fotos",
+        ".jpeg": "Bilder / Fotos",
+        ".png": "Bilder / Grafiken",
+        ".webp": "Bilder / Web",
+        ".gif": "Bilder / Animation",
+        
+        # Tabellen
+        ".xlsx": "Daten / Excel",
+        ".csv": "Daten / CSV",
+        ".json": "Daten / JSON",
+        
+        # Sonstige
+        ".zip": "Archiv / ZIP",
+        ".mp3": "Media / Audio",
+        ".mp4": "Media / Video"
     }
     
     for file_data in files_data:
         ext = file_data["extension"].lower()
-        category = extension_categories.get(ext, "Sonstiges")
+        category = type_categories.get(ext, "Divers / Unsortiert")
         
         results.append({
             "filename": file_data["filename"],
@@ -283,7 +394,7 @@ def create_fallback_categories(files_data):
     
     return {"results": results}
 
-def organize_files(files_data, categories, base_dir, target_base):
+def organize_files(files_data, categories, source_dir, target_dir):
     """Dateien nach Kategorien organisieren"""
     stats = {
         'moved': 0,
@@ -292,10 +403,12 @@ def organize_files(files_data, categories, base_dir, target_base):
         'categories': {}
     }
     
-    target_path = Path(target_base)
+    target_path = Path(target_dir)
     target_path.mkdir(parents=True, exist_ok=True)
     
-    # Fortschrittsanzeige
+    # Dateizuordnung erstellen
+    file_map = {f["filename"]: f for f in files_data}
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
     
@@ -303,25 +416,40 @@ def organize_files(files_data, categories, base_dir, target_base):
         filename = item["filename"]
         category = item["category"].replace("/", "-").replace("\\", "-")
         
-        # Fortschritt
         progress = (i + 1) / len(categories["results"])
         progress_bar.progress(progress)
-        status_text.text(f"Sortiere: {filename}")
+        status_text.text(f"Sortiere: {filename[:40]}...")
         
-        # Statistik
         if category not in stats['categories']:
             stats['categories'][category] = 0
         
-        source = Path(base_dir) / filename
+        source_path = Path(source_dir) / filename
         
         try:
-            if source.exists():
-                target_dir = target_path / category
-                target_dir.mkdir(parents=True, exist_ok=True)
+            if source_path.exists():
+                target_category_dir = target_path / category
+                target_category_dir.mkdir(parents=True, exist_ok=True)
                 
-                # Datei verschieben
-                shutil.move(str(source), str(target_dir / filename))
+                # Verwende bereinigten Namen falls vorhanden
+                if filename in file_map and "clean_name" in file_map[filename]:
+                    target_name = file_map[filename]["clean_name"]
+                else:
+                    target_name = filename
                 
+                target_file = target_category_dir / target_name
+                
+                # Konflikt vermeiden
+                counter = 1
+                while target_file.exists():
+                    name_parts = target_name.rsplit('.', 1)
+                    if len(name_parts) == 2:
+                        target_name = f"{name_parts[0]}_{counter}.{name_parts[1]}"
+                    else:
+                        target_name = f"{target_name}_{counter}"
+                    target_file = target_category_dir / target_name
+                    counter += 1
+                
+                shutil.move(str(source_path), str(target_file))
                 stats['moved'] += 1
                 stats['categories'][category] += 1
             else:
@@ -335,6 +463,108 @@ def organize_files(files_data, categories, base_dir, target_base):
     
     return stats
 
+def display_file_preview(files_data):
+    """Verbesserte Dateivorschau anzeigen"""
+    if not files_data:
+        return
+    
+    with st.expander("📋 Dateivorschau (erste 10 Dateien)", expanded=True):
+        for i, file_data in enumerate(files_data[:10]):
+            with st.container():
+                col1, col2 = st.columns([1, 3])
+                
+                with col1:
+                    # Dateityp-Icon
+                    ext = file_data["extension"]
+                    icon = "📄"
+                    if ext in [".jpg", ".png", ".webp"]:
+                        icon = "🖼️"
+                    elif ext in [".py", ".java", ".js"]:
+                        icon = "💻"
+                    elif ext == ".pdf":
+                        icon = "📕"
+                    elif ext == ".docx":
+                        icon = "📘"
+                    elif ext == ".zip":
+                        icon = "📦"
+                    
+                    st.markdown(f"**{icon} {file_data['filename']}**")
+                    st.caption(f"Typ: {ext}")
+                    
+                    if file_data.get('clean_name') != file_data['filename']:
+                        st.caption(f"→ {file_data['clean_name']}")
+                
+                with col2:
+                    # Textvorschau in Box
+                    preview = file_data["text_preview"]
+                    if preview:
+                        if len(preview) > 300:
+                            preview = preview[:300] + "..."
+                        st.text_area(
+                            "Inhalt",
+                            preview,
+                            height=100,
+                            key=f"preview_{i}",
+                            disabled=True,
+                            label_visibility="collapsed"
+                        )
+        
+        if len(files_data) > 10:
+            st.info(f"Und {len(files_data) - 10} weitere Dateien...")
+
+def display_categories_preview(categories):
+    """Verbesserte Kategorienvorschau anzeigen"""
+    if not categories or "results" not in categories:
+        return
+    
+    with st.expander("📊 KI-Kategorisierung", expanded=True):
+        # Kategorie-Statistik
+        cat_stats = {}
+        for item in categories["results"]:
+            cat = item["category"]
+            cat_stats[cat] = cat_stats.get(cat, 0) + 1
+        
+        # Als Tabelle anzeigen
+        st.write("**Kategorien-Übersicht:**")
+        
+        data = []
+        for cat, count in sorted(cat_stats.items()):
+            confidence_avg = sum(
+                item["confidence"] 
+                for item in categories["results"] 
+                if item["category"] == cat
+            ) / count
+            
+            data.append({
+                "Kategorie": cat,
+                "Anzahl": count,
+                "Confidence": f"{confidence_avg:.1%}"
+            })
+        
+        st.dataframe(
+            data,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Kategorie": st.column_config.TextColumn(width="large"),
+                "Anzahl": st.column_config.NumberColumn(width="small"),
+                "Confidence": st.column_config.TextColumn(width="small")
+            }
+        )
+        
+        # Beispiele pro Kategorie
+        st.write("**Beispiele pro Kategorie:**")
+        for cat in sorted(cat_stats.keys())[:5]:  # Erste 5 Kategorien
+            examples = [
+                item["filename"] 
+                for item in categories["results"] 
+                if item["category"] == cat
+            ][:3]  # Erste 3 Beispiele
+            
+            with st.expander(f"{cat} ({cat_stats[cat]} Dateien)"):
+                for ex in examples:
+                    st.write(f"• {ex}")
+
 # -------------------- Streamlit UI --------------------
 def main():
     st.title("📂 KI-gestützte Dateisortierung")
@@ -343,7 +573,7 @@ def main():
     # Session State initialisieren
     init_session_state()
     
-    # Sidebar für Einstellungen
+    # Sidebar
     with st.sidebar:
         st.header("⚙️ Einstellungen")
         
@@ -354,195 +584,235 @@ def main():
             help="Erstelle einen API Key unter https://console.groq.com"
         )
         
-        # Detaillevel für KI-Analyse
+        # Detaillevel
         detail_level = st.selectbox(
-            "Detailliertheit der KI-Analyse",
+            "KI-Detailliertheit",
             ["wenig", "mittel", "viel"],
-            index=1,
-            help="Bestimmt, wie detailliert die KI die Dateien analysiert"
+            index=1
         )
         
-        # Maximale Anzahl Dateien
+        # Max Dateien
         max_files = st.slider(
-            "Maximale Anzahl Dateien",
-            min_value=10,
-            max_value=500,
-            value=100,
-            help="Limit für die Anzahl der zu verarbeitenden Dateien"
+            "Maximale Dateien",
+            10, 500, 100
+        )
+        
+        # Dateinamen bereinigen
+        st.session_state.clean_filenames = st.checkbox(
+            "Dateinamen bereinigen",
+            value=True,
+            help="Entfernt Sonderzeichen aus Dateinamen"
         )
         
         st.markdown("---")
-        st.info(
-            "**Unterstützte Dateitypen:**\n"
-            "PDF, DOCX, TXT, JPG, PNG, PPTX, XLSX, ZIP"
-        )
+        st.info("""
+        **Unterstützte Dateitypen:**
+        
+        **Code:** .py, .java, .js, .html, .css, .cpp, .c
+        **Dokumente:** .pdf, .docx, .txt, .md
+        **Bilder:** .jpg, .png, .webp, .gif
+        **Daten:** .xlsx, .csv, .json
+        **Media:** .mp3, .mp4
+        **Archiv:** .zip
+        """)
     
-    # Hauptbereich
+    # Hauptbereich - Drei Spalten
     col1, col2, col3 = st.columns([1, 1, 1])
     
+    # SCHRITT 1: Dateien hochladen
     with col1:
-        st.subheader("Schritt 1: Dateien hochladen")
+        st.subheader("📥 Schritt 1: Dateien")
         
-        # Datei-Upload
-        uploaded_files = st.file_uploader(
-            "Wähle Dateien aus",
-            type=["pdf", "docx", "txt", "jpg", "png", "zip", "pptx", "xlsx"],
-            accept_multiple_files=True
+        # Upload Optionen
+        upload_option = st.radio(
+            "Quelle wählen",
+            ["Dateien hochladen", "Verzeichnis angeben"],
+            horizontal=True
         )
         
-        # Oder Verzeichnis wählen
-        use_directory = st.checkbox("Stattdessen Verzeichnis verwenden")
-        
-        if use_directory:
-            input_dir = st.text_input(
-                "Pfad zum Verzeichnis",
-                value="C:\\Users\\Beispiel\\Downloads\\WA"
+        if upload_option == "Dateien hochladen":
+            uploaded_files = st.file_uploader(
+                "Dateien auswählen",
+                accept_multiple_files=True,
+                type=[
+                    # Code
+                    "py", "java", "js", "html", "css", "cpp", "c", "h",
+                    # Dokumente
+                    "pdf", "docx", "txt", "md", "rtf",
+                    # Bilder
+                    "jpg", "jpeg", "png", "webp", "gif", "bmp",
+                    # Daten
+                    "xlsx", "csv", "json", "xml",
+                    # Media
+                    "mp3", "mp4", "wav",
+                    # Archiv
+                    "zip"
+                ]
             )
-        else:
             input_dir = None
+        else:
+            input_dir = st.text_input(
+                "Verzeichnispfad",
+                value="C:\\Users\\Beispiel\\Downloads"
+            )
+            uploaded_files = None
         
         if st.button("📥 Dateien extrahieren", type="primary", use_container_width=True):
-            if not uploaded_files and not use_directory:
-                st.warning("Bitte Dateien hochladen oder ein Verzeichnis angeben")
+            if not uploaded_files and not input_dir:
+                st.warning("Bitte Dateien oder Verzeichnis angeben")
             else:
                 with st.spinner("Extrahiere Dateien..."):
-                    # Temporäres Verzeichnis erstellen
                     temp_dir = create_temp_directory()
                     
                     if uploaded_files:
-                        # Hochgeladene Dateien speichern
                         for uploaded_file in uploaded_files:
                             file_path = temp_dir / uploaded_file.name
                             with open(file_path, 'wb') as f:
                                 f.write(uploaded_file.getbuffer())
                         
-                        # ZIP-Dateien extrahieren
-                        zip_files = [f for f in uploaded_files if f.name.endswith('.zip')]
-                        for zip_file in zip_files:
+                        # ZIP extrahieren
+                        for zip_file in [f for f in uploaded_files if f.name.endswith('.zip')]:
                             extract_zip(zip_file.getbuffer(), temp_dir)
                         
-                        input_path = temp_dir
+                        source_path = temp_dir
                     else:
-                        input_path = Path(input_dir)
+                        source_path = Path(input_dir)
                     
-                    # Dateien extrahieren
-                    st.session_state.files_data = extract_all_files(input_path, max_files)
+                    # Dateien umbenennen
+                    if st.session_state.clean_filenames:
+                        renamed = rename_files_in_directory(source_path)
+                        if renamed:
+                            st.info(f"{len(renamed)} Dateien umbenannt")
+                    
+                    # Inhalte extrahieren
+                    st.session_state.files_data = extract_all_files(source_path, max_files)
                     st.session_state.processing_step = 2
-                    st.success(f"{len(st.session_state.files_data['files'])} Dateien extrahiert")
                     st.rerun()
     
+    # SCHRITT 2: KI-Analyse
     with col2:
-        st.subheader("Schritt 2: KI-Analyse")
+        st.subheader("🤖 Schritt 2: KI-Analyse")
         
         if st.session_state.files_data:
-            st.info(f"✅ {len(st.session_state.files_data['files'])} Dateien bereit")
+            files_count = len(st.session_state.files_data["files"])
+            st.success(f"✅ {files_count} Dateien extrahiert")
             
-            # Dateitypen anzeigen
-            file_types = st.session_state.files_data['metadata']['file_types']
-            st.write("**Dateitypen:**")
-            for ext, count in file_types.items():
-                st.write(f"  {ext}: {count}")
+            # Dateitypen-Statistik
+            file_types = st.session_state.files_data["metadata"]["file_types"]
+            st.write(f"**{len(file_types)} verschiedene Dateitypen:**")
             
+            # Gruppierte Anzeige
+            type_groups = {
+                "Code": [".py", ".java", ".js", ".html", ".css", ".cpp", ".c", ".h"],
+                "Dokumente": [".pdf", ".docx", ".txt", ".md", ".rtf"],
+                "Bilder": [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"],
+                "Daten": [".xlsx", ".csv", ".json", ".xml"],
+                "Andere": []
+            }
+            
+            for group, extensions in type_groups.items():
+                count = sum(file_types.get(ext, 0) for ext in extensions)
+                if count > 0:
+                    st.write(f"  {group}: {count}")
+            
+            # KI-Analyse Button
             if api_key:
                 if st.button("🤖 Mit KI analysieren", type="primary", use_container_width=True):
-                    with st.spinner("KI analysiert Dateien..."):
-                        categories = analyze_with_groq(
-                            st.session_state.files_data['files'],
+                    with st.spinner("KI analysiert..."):
+                        st.session_state.categories = analyze_with_groq(
+                            st.session_state.files_data["files"],
                             api_key,
                             detail_level
                         )
-                        st.session_state.categories = categories
                         st.session_state.processing_step = 3
-                        st.success("KI-Analyse abgeschlossen")
                         st.rerun()
             else:
-                st.warning("Gib einen API Key ein für KI-Analyse")
+                st.warning("API Key für KI benötigt")
                 
-                # Fallback: Einfache Kategorien
-                if st.button("📊 Einfache Kategorien (ohne KI)", use_container_width=True):
+                if st.button("📊 Einfache Kategorien", use_container_width=True):
                     with st.spinner("Erstelle Kategorien..."):
-                        categories = create_fallback_categories(st.session_state.files_data['files'])
-                        st.session_state.categories = categories
+                        st.session_state.categories = create_fallback_categories(
+                            st.session_state.files_data["files"]
+                        )
                         st.session_state.processing_step = 3
-                        st.success("Kategorien erstellt")
                         st.rerun()
         else:
             st.info("⏳ Extrahiere zuerst Dateien")
     
+    # SCHRITT 3: Organisieren
     with col3:
-        st.subheader("Schritt 3: Organisieren")
+        st.subheader("📁 Schritt 3: Organisieren")
         
         if st.session_state.categories:
-            st.info(f"✅ {len(st.session_state.categories['results'])} Kategorien erstellt")
-            
-            # Kategorien anzeigen
-            category_counts = {}
-            for item in st.session_state.categories['results']:
-                cat = item['category']
-                category_counts[cat] = category_counts.get(cat, 0) + 1
-            
-            st.write("**Erkannte Kategorien:**")
-            for cat, count in sorted(category_counts.items()):
-                st.write(f"  {cat}: {count} Dateien")
+            cat_count = len(st.session_state.categories["results"])
+            st.success(f"✅ {cat_count} Kategorien erstellt")
             
             # Zielverzeichnis
             target_dir = st.text_input(
-                "Zielverzeichnis für sortierte Dateien",
+                "Zielverzeichnis",
                 value=str(Path.cwd() / "SORTIERTE_DATEIEN")
             )
             
             if st.button("📁 Dateien organisieren", type="primary", use_container_width=True):
-                with st.spinner("Organisiere Dateien..."):
-                    # Quellverzeichnis bestimmen
+                with st.spinner("Organisiere..."):
                     if st.session_state.temp_dir:
                         source_dir = st.session_state.temp_dir
-                    elif use_directory and input_dir:
+                    elif input_dir:
                         source_dir = Path(input_dir)
                     else:
                         source_dir = st.session_state.temp_dir
                     
-                    # Dateien organisieren
                     stats = organize_files(
-                        st.session_state.files_data['files'],
+                        st.session_state.files_data["files"],
                         st.session_state.categories,
                         source_dir,
                         target_dir
                     )
                     
-                    # Statistik anzeigen
-                    st.success(f"{stats['moved']} Dateien erfolgreich sortiert!")
+                    # Ergebnis anzeigen
+                    st.success(f"✅ {stats['moved']} Dateien sortiert!")
                     
                     if stats['errors'] > 0:
-                        st.warning(f"{stats['errors']} Fehler aufgetreten")
+                        st.warning(f"{stats['errors']} Fehler")
                     
-                    # Download-Link für Kategorien-Liste
-                    categories_json = json.dumps(st.session_state.categories, indent=2, ensure_ascii=False)
-                    st.download_button(
-                        "📥 Kategorien als JSON speichern",
-                        data=categories_json,
-                        file_name="datei_kategorien.json",
-                        mime="application/json"
-                    )
+                    # Download Optionen
+                    col_dl1, col_dl2 = st.columns(2)
                     
-                    # Cleanup Button
-                    if st.button("🗑️ Temporäre Dateien löschen", type="secondary"):
+                    with col_dl1:
+                        categories_json = json.dumps(st.session_state.categories, indent=2)
+                        st.download_button(
+                            "📥 Kategorien JSON",
+                            categories_json,
+                            "kategorien.json"
+                        )
+                    
+                    with col_dl2:
+                        files_json = json.dumps(st.session_state.files_data, indent=2)
+                        st.download_button(
+                            "📥 Dateiliste JSON",
+                            files_json,
+                            "dateien.json"
+                        )
+                    
+                    # Cleanup
+                    if st.button("🗑️ Aufräumen", type="secondary"):
                         cleanup_temp_directory()
-                        st.success("Temporäre Dateien gelöscht")
+                        st.success("Bereinigt")
         else:
             st.info("⏳ Führe zuerst KI-Analyse durch")
     
     st.markdown("---")
     
-    # Vorschau der Daten
-    if st.session_state.files_data and st.expander("📋 Extraktionsdetails anzeigen"):
-        st.json(st.session_state.files_data, expanded=False)
+    # VERBESSERTE VORSCHAUEN
+    if st.session_state.files_data:
+        display_file_preview(st.session_state.files_data["files"])
     
-    if st.session_state.categories and st.expander("📋 KI-Analyse-Ergebnisse anzeigen"):
-        st.json(st.session_state.categories, expanded=False)
+    if st.session_state.categories:
+        display_categories_preview(st.session_state.categories)
     
     # Footer
     st.markdown("---")
-    st.caption("Made with Streamlit & Groq AI | 📂 KI Dateisortierung v1.0")
+    st.caption("📂 KI Dateisortierung v2.0 | Unterstützt 30+ Dateitypen")
 
 if __name__ == "__main__":
     main()
