@@ -1,4 +1,4 @@
-# modules/file_handling.py - Dateiverarbeitung (korrigierte Namensbereinigung)
+# modules/file_handling.py - Verbesserte Dateiverarbeitung
 import os
 import json
 import shutil
@@ -143,7 +143,7 @@ class FileProcessor:
         filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
         
         # Ersetze Umlaute (optional, kann deaktiviert werden)
-        if st.session_state.get('replace_umlauts', True):
+        if st.session_state.get('replace_umlauts', False):
             umlaut_replacements = {
                 'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
                 'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
@@ -220,9 +220,9 @@ class FileProcessor:
         st.session_state.renamed_files = renamed
         return renamed
     
-    # -------------------- Dateiinhalt Extraktion --------------------
+    # -------------------- VERBESSERTE DATEIINHALT EXTRAKTION --------------------
     def extract_text_from_file(self, file_path):
-        """Extrahiert Text aus verschiedenen Dateitypen"""
+        """Extrahiert Text aus verschiedenen Dateitypen - MEHR PDF-Seiten"""
         try:
             ext = file_path.suffix.lower()
             
@@ -253,58 +253,94 @@ class FileProcessor:
             except:
                 file_size = 0
             
-            # Programmiersprachen
-            code_extensions = [".py", ".java", ".cpp", ".c", ".js", ".html", ".css", ".php", ".rb", ".go", ".rs"]
+            # PROGRAMMIERSPRACHEN
+            code_extensions = [".py", ".java", ".cpp", ".c", ".js", ".html", ".css", ".php", ".rb", ".go", ".rs", ".ts"]
             if ext in code_extensions:
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read(3000)
-                        return f"Code ({ext[1:].upper()}):\n{content}"
+                        content = f.read(5000)  # Mehr Zeichen für Code
+                        # Zeilen zählen
+                        lines = content.count('\n') + 1
+                        return f"Code ({ext[1:].upper()}, {lines} Zeilen):\n{content[:4000]}"
                 except:
                     return f"Code-Datei ({ext})"
             
-            # PDF
+            # PDF - MEHR SEITEN (10 statt 2)
             elif ext == ".pdf":
                 try:
                     text = ""
                     with pdfplumber.open(file_path) as pdf:
-                        for i, page in enumerate(pdf.pages[:2]):
+                        total_pages = len(pdf.pages)
+                        # Verarbeite bis zu 10 Seiten oder 25% der Seiten
+                        max_pages = min(10, max(5, total_pages // 4))
+                        
+                        for i, page in enumerate(pdf.pages[:max_pages]):
                             page_text = page.extract_text()
-                            if page_text:
-                                text += f"\n--- Seite {i+1} ---\n{page_text[:800]}"
-                    return text.strip() or "PDF (kein Text extrahierbar)"
+                            if page_text and page_text.strip():
+                                text += f"\n--- Seite {i+1}/{total_pages} ---\n{page_text[:1000]}"
+                            else:
+                                # OCR für gescannte Seiten
+                                try:
+                                    images = convert_from_path(file_path, first_page=i+1, last_page=i+1)
+                                    for img in images:
+                                        ocr_text = pytesseract.image_to_string(img)
+                                        if ocr_text.strip():
+                                            text += f"\n--- Seite {i+1}/{total_pages} [OCR] ---\n{ocr_text[:800]}"
+                                except:
+                                    text += f"\n--- Seite {i+1}/{total_pages} [Bild/Scan] ---"
+                    
+                    if text.strip():
+                        return f"PDF ({total_pages} Seiten):{text}"
+                    else:
+                        return f"PDF-Datei ({total_pages} Seiten, kein Text extrahierbar)"
                 except Exception as e:
-                    return f"PDF-Datei"
+                    return f"PDF-Datei (Fehler: {str(e)[:100]})"
             
             # Word
             elif ext == ".docx":
                 try:
                     doc = Document(file_path)
                     paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-                    return "\n".join(paragraphs[:10])
+                    return f"Word-Dokument ({len(paragraphs)} Absätze):\n" + "\n".join(paragraphs[:20])
                 except:
                     return "Word-Dokument"
             
             # Textdateien
-            elif ext in [".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml"]:
+            elif ext in [".txt", ".md", ".rtf"]:
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        return f.read(2000).strip()
+                        content = f.read(8000)
+                        lines = content.count('\n') + 1
+                        return f"Textdatei ({lines} Zeilen):\n{content[:6000]}"
                 except:
                     return f"Textdatei ({ext})"
+            
+            # CSV/JSON/XML
+            elif ext in [".csv", ".json", ".xml"]:
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read(5000)
+                        lines = content.count('\n') + 1
+                        return f"Daten ({ext[1:].upper()}, {lines} Zeilen):\n{content[:4000]}"
+                except:
+                    return f"Daten ({ext})"
             
             # Bilder
             elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".gif", ".webp", ".svg"]:
                 try:
                     img = Image.open(file_path)
-                    if file_size < 2 * 1024 * 1024:  # < 2 MB
+                    img_info = f"{img.size[0]}x{img.size[1]}px"
+                    
+                    if file_size < 5 * 1024 * 1024:  # < 5 MB
                         try:
                             text = pytesseract.image_to_string(img)
                             if text.strip():
-                                return f"Bild mit Text:\n{text[:500]}"
+                                lines = text.count('\n') + 1
+                                return f"Bild mit Text ({img_info}, {lines} Zeilen):\n{text[:2000]}"
                         except:
                             pass
-                    return f"Bilddatei ({ext})"
+                    
+                    return f"Bilddatei ({ext}, {img_info})"
                 except:
                     return f"Bilddatei ({ext})"
             
@@ -320,7 +356,7 @@ class FileProcessor:
             elif ext in [".mp3", ".wav", ".flac", ".aac", ".mp4", ".avi", ".mov", ".mkv", ".opus"]:
                 return f"Media-Datei ({ext})"
             
-            # Archive (werden nicht extrahiert)
+            # Archive
             elif ext in [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"]:
                 return f"Archiv ({ext})"
             
@@ -349,8 +385,8 @@ class FileProcessor:
                     pass
             return f"FEHLER BEIM LESEN: {str(e)[:100]}"
     
-    # -------------------- Batch Verarbeitung --------------------
-    def extract_all_files(self, input_dir, max_files=50):
+    # -------------------- BATCH VERARBEITUNG --------------------
+    def extract_all_files(self, input_dir, max_files=100):  # STANDARD AUF 100
         """Extrahiert alle Dateien im Verzeichnis"""
         files_data = []
         file_types = {}
@@ -429,7 +465,7 @@ class FileProcessor:
                     "extension": ext,
                     "size_kb": file_path.stat().st_size // 1024 if file_path.exists() else 0,
                     "is_processed": is_processed,
-                    "text_preview": text[:1000] if isinstance(text, str) else str(text)[:1000]
+                    "text_preview": text[:1500] if isinstance(text, str) else str(text)[:1500]
                 })
                 
             except Exception as e:
@@ -438,11 +474,11 @@ class FileProcessor:
         progress_bar.empty()
         status_text.empty()
         
-        # Ergebnis
+        # Ergebnis mit KORREKTER Dateitypen-Statistik
         result = {
             "metadata": {
                 "total_files": len(files_data),
-                "file_types": dict(sorted(file_types.items())),
+                "file_types": self._get_detailed_file_types(files_data),  # Verbesserte Statistik
                 "skipped_files": skipped_files,
                 "processed_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "renamed_files": st.session_state.get('renamed_files', [])
@@ -451,6 +487,55 @@ class FileProcessor:
         }
         
         return result
+    
+    def _get_detailed_file_types(self, files_data):
+        """Erstellt detaillierte Dateitypen-Statistik"""
+        file_types = {}
+        
+        # Gruppiere ähnliche Dateitypen
+        type_groups = {
+            "PDF Dokumente": [".pdf"],
+            "Word Dokumente": [".docx", ".doc"],
+            "Textdateien": [".txt", ".md", ".rtf"],
+            "Bilder": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".svg"],
+            "Code": [".py", ".java", ".js", ".cpp", ".c", ".html", ".css", ".php", ".rb", ".go", ".rs", ".ts"],
+            "Tabellen": [".xlsx", ".xls", ".csv", ".ods"],
+            "Präsentationen": [".pptx", ".ppt", ".odp"],
+            "Archive": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"],
+            "Media": [".mp3", ".mp4", ".avi", ".mov", ".mkv", ".wav", ".flac"],
+            "Ausführbare": [".exe", ".msi", ".dmg", ".app"],
+            "Daten": [".json", ".xml", ".yaml", ".yml"],
+            "Sonstige": []  # Alles andere
+        }
+        
+        # Zähle Dateien pro Gruppe
+        group_counts = {group: 0 for group in type_groups.keys()}
+        individual_types = {}
+        
+        for file_data in files_data:
+            ext = file_data["extension"].lower()
+            
+            # Individuelle Zählung
+            individual_types[ext] = individual_types.get(ext, 0) + 1
+            
+            # Gruppen-Zählung
+            found_group = False
+            for group, extensions in type_groups.items():
+                if ext in extensions:
+                    group_counts[group] += 1
+                    found_group = True
+                    break
+            
+            if not found_group:
+                group_counts["Sonstige"] += 1
+        
+        # Kombiniere beide Statistiken
+        detailed_stats = {
+            "gruppiert": {k: v for k, v in group_counts.items() if v > 0},
+            "individuell": dict(sorted(individual_types.items()))
+        }
+        
+        return detailed_stats
     
     # -------------------- Dateiorganisation --------------------
     def organize_files(self, files_data, categories, source_dir, target_dir):
