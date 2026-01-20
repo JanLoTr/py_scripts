@@ -89,7 +89,17 @@ def _handle_file_extraction(file_processor, uploaded_files, input_dir):
 
 def _add_file_type_statistics(files_data):
     """Fügt gruppierte Dateitypen-Statistik hinzu"""
-    individual_counts = files_data['metadata'].get('file_types', {})
+    # Hole die INDIVIDUELLEN Dateitypen-Zählungen
+    file_types_data = files_data['metadata'].get('file_types', {})
+    
+    # Wenn file_types bereits das neue Format hat (mit gruppiert/individuell)
+    if isinstance(file_types_data, dict) and "individuell" in file_types_data:
+        individual_counts = file_types_data.get("individuell", {})
+    else:
+        # Altes Format: direkte Zählungen
+        individual_counts = file_types_data
+    
+    # Initialisiere gruppierte Zählungen
     grouped_counts = {
         "PDFs": 0,
         "Word-Dokumente": 0,
@@ -102,6 +112,46 @@ def _add_file_type_statistics(files_data):
         "Ausführbare Dateien": 0,
         "Sonstige": 0
     }
+    
+    # Zähle basierend auf individuellen Dateitypen
+    for ext, count in individual_counts.items():
+        if isinstance(count, dict):  # Falls count selbst ein Dictionary ist
+            count_value = sum(count.values()) if isinstance(count, dict) else count
+        else:
+            count_value = count
+            
+        ext_lower = ext.lower()
+        
+        if ext_lower == ".pdf":
+            grouped_counts["PDFs"] += count_value
+        elif ext_lower in [".docx", ".doc"]:
+            grouped_counts["Word-Dokumente"] += count_value
+        elif ext_lower in [".txt", ".md", ".rtf"]:
+            grouped_counts["Textdateien"] += count_value
+        elif ext_lower in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"]:
+            grouped_counts["Bilder"] += count_value
+        elif ext_lower in [".py", ".java", ".js", ".html", ".css", ".cpp", ".c", ".php", ".rb", ".go", ".rs"]:
+            grouped_counts["Code"] += count_value
+        elif ext_lower in [".xlsx", ".xls", ".csv", ".ods"]:
+            grouped_counts["Tabellen"] += count_value
+        elif ext_lower in [".zip", ".rar", ".7z", ".tar", ".gz"]:
+            grouped_counts["Archive"] += count_value
+        elif ext_lower in [".mp3", ".mp4", ".wav", ".avi", ".mov", ".mkv"]:
+            grouped_counts["Media"] += count_value
+        elif ext_lower in [".exe", ".msi", ".dmg", ".app", ".bat", ".cmd"]:
+            grouped_counts["Ausführbare Dateien"] += count_value
+        else:
+            grouped_counts["Sonstige"] += count_value
+    
+    # Entferne leere Kategorien
+    grouped_counts = {k: v for k, v in grouped_counts.items() if v > 0}
+    
+    # Speichere in Metadaten - vereinfacht für die Anzeige
+    files_data['metadata']['gruppiert'] = grouped_counts
+    
+    # Falls nicht vorhanden, behalte die individuelle Statistik bei
+    if "individuell" not in files_data['metadata']:
+        files_data['metadata']['individuell'] = individual_counts
     
     for ext, count in individual_counts.items():
         ext_lower = ext.lower()
