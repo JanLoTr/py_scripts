@@ -294,23 +294,23 @@ def render_step3(file_processor):
 
 def _handle_file_organization(file_processor, target_dir):
     """Behandelt Dateiorganisation"""
-    with st.spinner("Sortiere Dateien..."):
-        temp_dir = get_state('temp_dir')
-        files_data = get_state('files_data')
-        categories = get_state('categories')
-        
-        if not temp_dir or not files_data or not categories:
-            st.error("Daten nicht verfügbar!")
-            return
-        
-        # Zielverzeichnis erstellen
-        target_path = Path(target_dir)
-        try:
-            target_path.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            st.error(f"Konnte Zielverzeichnis nicht erstellen: {str(e)}")
-            return
-        
+    temp_dir = get_state('temp_dir')
+    files_data = get_state('files_data')
+    categories = get_state('categories')
+    
+    if not temp_dir or not files_data or not categories:
+        st.error("Daten nicht verfügbar!")
+        return
+    
+    # Zielverzeichnis erstellen
+    target_path = Path(target_dir)
+    try:
+        target_path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        st.error(f"Konnte Zielverzeichnis nicht erstellen: {str(e)}")
+        return
+    
+    with st.spinner("⏳ Sortiere Dateien..."):
         # Dateien organisieren
         stats = file_processor.organize_files(
             files_data["files"],
@@ -321,44 +321,51 @@ def _handle_file_organization(file_processor, target_dir):
         
         # Nicht verarbeitete Dateien kopieren
         not_processed_count = file_processor.copy_not_processed_files(target_path)
-        
-        # Ergebnis anzeigen
-        st.success(f"✅ {stats['moved']} Dateien sortiert")
-        
-        if not_processed_count > 0:
-            st.info(f"📁 {not_processed_count} nicht verarbeitete Dateien kopiert")
-        
-        if stats['errors'] > 0:
-            st.warning(f"⚠ {stats['errors']} Fehler aufgetreten")
-        
-        # Download-Daten vorbereiten
-        from .downloads import prepare_download_data
-        prepare_download_data(categories, files_data)
-        
-        # Buttons
-        col_final1, col_final2 = st.columns(2)
-        
-        with col_final1:
-            if st.button("📂 Ordner öffnen", type="primary", use_container_width=True, key="open_folder_button"):
-                _open_folder(str(target_path))
-        
-        with col_final2:
-            if st.button("🗑️ Temporäre Dateien löschen", use_container_width=True, key="cleanup_button"):
-                file_processor.cleanup_temp_directory()
-                st.success("✅ Aufgeräumt!")
-                st.rerun()
+    
+    # Ergebnis anzeigen - AUSSERHALB des spinners
+    st.success(f"✅ {stats['moved']} Dateien sortiert")
+    
+    if not_processed_count > 0:
+        st.info(f"📁 {not_processed_count} nicht verarbeitete Dateien kopiert")
+    
+    if stats['errors'] > 0:
+        st.warning(f"⚠ {stats['errors']} Fehler aufgetreten")
+    
+    # Download-Daten vorbereiten
+    from .downloads import prepare_download_data
+    prepare_download_data(categories, files_data)
+    
+    # Buttons - AUSSERHALB des spinners
+    col_final1, col_final2 = st.columns(2)
+    
+    with col_final1:
+        if st.button("📂 Ordner öffnen", type="primary", use_container_width=True, key="open_folder_button"):
+            _open_folder_safe(str(target_path))
+    
+    with col_final2:
+        if st.button("🗑️ Temporäre Dateien löschen", use_container_width=True, key="cleanup_button"):
+            file_processor.cleanup_temp_directory()
+            st.success("✅ Aufgeräumt!")
+            st.rerun()
 
-def _open_folder(folder_path):
-    """Öffnet den Ordner mit dem Standard-Dateimanager"""
+def _open_folder_safe(folder_path):
+    """Öffnet den Ordner mit dem Standard-Dateimanager - sichere Version"""
     try:
+        folder_path = str(Path(folder_path).resolve())  # Absoluter Pfad
+        
         if platform.system() == 'Windows':
+            # Windows: Explorer öffnen
             os.startfile(folder_path)
-            st.success(f"📂 Ordner wird geöffnet: {folder_path}")
+            st.balloons()
+            st.success(f"✅ Ordner geöffnet: {folder_path}")
         elif platform.system() == 'Darwin':  # macOS
             subprocess.Popen(['open', folder_path])
-            st.success(f"📂 Ordner wird geöffnet: {folder_path}")
+            st.balloons()
+            st.success(f"✅ Ordner geöffnet: {folder_path}")
         else:  # Linux
             subprocess.Popen(['xdg-open', folder_path])
-            st.success(f"📂 Ordner wird geöffnet: {folder_path}")
+            st.balloons()
+            st.success(f"✅ Ordner geöffnet: {folder_path}")
     except Exception as e:
         st.error(f"❌ Konnte Ordner nicht öffnen: {str(e)}")
+        st.write(f"Versuchter Pfad: {folder_path}")
