@@ -40,6 +40,12 @@ def analyze_with_groq(files_data, api_key, detail_level="mittel"):
         
         system_prompt = f"""Du bist ein intelligentes Datei-Kategorisierungs-System.
 
+BENUTZER-KONTEXT:
+- Der Benutzer ging in die HTL (Berufsschule) - HTL-Material daher älter, archiviert
+- Der Benutzer studiert an einer FH (Fachhochschule) - FH-Material ist aktueller
+- HTL-typische Inhalte: Kostenrechnung, Betriebswirtschaft, BWL, Lagerbestand
+- FH-typische Inhalte: Vorlesungen, Diplomarbeit, aktuelle Studiumsinhalte
+
 {prompt}
 
 WICHTIGSTE REGEL: KATEGORISIERE NACH INHALT, NICHT NACH DATEITYP!
@@ -48,24 +54,32 @@ Analysiere den Dateiinhalt in 'text_preview' und erstelle sinnvolle Kategorien.
 ANWEISUNGEN:
 1. LIES den Dateiinhalt in 'text_preview' 
 2. ERKENNE das Hauptthema (nicht Dateityp!)
-3. ERSTELLE sinnvolle Kategorien wie: "Schule/Mathematik-Hausaufgaben", "Arbeit/Projekt-X", "Finanzen/Steuern"
-4. KEINE generischen Kategorien wie "PDF-Dateien" oder "Bilder"
-5. Format: "Hauptkategorie / Spezifische Kategorie"
+3. UNTERSCHEIDE zwischen HTL-Material und FH-Material
+4. ERSTELLE sinnvolle Kategorien wie: "HTL/Betriebswirtschaft", "FH/Mathematik", "Arbeit/Projekt-X", "Finanzen/Steuern"
+5. KEINE generischen Kategorien wie "PDF-Dateien" oder "Bilder"
+6. Format: "Hauptkategorie / Spezifische Kategorie"
+
+SPEZIAL-REGEL - KOSTENRECHNUNG:
+- Wenn "Kostenrechnung" oder "Kalkulieren" erwähnt wird → IMMER "HTL / Betriebswirtschaft"
+- Das ist ein HTL-Fach, NICHT persönlich!
 
 BEISPIELE FÜR GUTE KATEGORIEN:
-- "Rechnung/Elektrizitätsanbieter" (nicht "PDF")
-- "Lebenslauf/Bewerbung" (nicht "Word-Dokument")
-- "Python/Web-Scraping" (nicht "Code")
-- "Familie/Geburtsurkunde" (nicht "Scan")
-- "Auto/Reparaturkosten" (nicht "Rechnung")
+- "HTL / Betriebswirtschaft" (für Kostenrechnung-Unterlagen)
+- "FH / Mathematik" (für aktuelle FH-Vorlesungen)
+- "Bewerbung / Lebenslauf" (nicht "Word-Dokument")
+- "Programmierung / Python" (nicht "Code")
+- "Familie / Geburtsurkunde" (nicht "Scan")
+- "Auto / Reparaturkosten" (nicht "Rechnung")
+- "Finanzen / Stromrechnung" (nicht "PDF")
 
 BEISPIELE FÜR SCHLECHTE KATEGORIEN:
 - "PDF Datei" ❌ (zu generisch)
 - "Bild" ❌ (sagt nichts aus)
 - "Textdatei" ❌ (uninformativ)
 - "Microsoft Word" ❌ (Dateityp, nicht Inhalt)
+- "Persönlich / Kostenrechnung" ❌ (Kostenrechnung ist HTL-Material!)
 
-ANALYSIERE JETZT DIESE DATEIEN NACH IHREM INHALT:
+ANALYSIERE JETZT DIESE DATEIEN NACH IHREM INHALT UND KONTEXT:
 
 Antworte NUR im JSON Format:
 {{
@@ -74,7 +88,7 @@ Antworte NUR im JSON Format:
       "filename": "dateiname.xyz",
       "category": "Hauptkategorie / Spezifische Kategorie",
       "confidence": 0.0-1.0,
-      "reason": "kurze Begründung basierend auf Inhalt"
+      "reason": "kurze Begründung basierend auf Inhalt und Kontext"
     }}
   ]
 }}"""
@@ -89,32 +103,51 @@ Antworte NUR im JSON Format:
             # Extrahiere Schlüsselwörter aus dem Inhalt
             preview = f["text_preview"]
             
-            # Erkenne wichtige Themen (einfache Heuristik)
+            # Erkenne wichtige Themen (erweiterte Heuristik mit HTL/FH Unterscheidung)
             themes = []
             preview_lower = preview.lower()
+            filename_lower = f["filename"].lower()
             
-            # Schule/Studium
-            if any(word in preview_lower for word in ["schule", "studium", "matura", "prüfung", "hausaufgabe", "klausur", "seminar"]):
-                themes.append("Schule/Studium")
+            # HTL-spezifisch (Berufsschule)
+            if any(word in preview_lower or word in filename_lower for word in ["kostenrechnung", "betriebswirtschaft", "bw", "buchhaltung", "deckungsbeitrag", "lagerhaltung"]):
+                themes.append("HTL / Betriebswirtschaft")
             
-            # Arbeit/Beruf
-            if any(word in preview_lower for word in ["arbeit", "beruf", "projekt", "kunde", "auftrag", "geschäft", "firma"]):
+            # FH-spezifisch (Fachhochschule - aktuelle Studiumsinhalte)
+            if any(word in preview_lower or word in filename_lower for word in ["diplomarbeit", "seminar", "vorlesung", "modulhandbuch", "prüfungsordnung"]):
+                themes.append("FH / Studium")
+            
+            # Schule/Studium (allgemein)
+            if any(word in preview_lower for word in ["schule", "studium", "matura", "prüfung", "hausaufgabe", "klausur", "unterricht"]):
+                if "HTL" not in str(themes) and "FH" not in str(themes):
+                    themes.append("Schule/Studium")
+            
+            # Arbeit/Beruf/Praktikum
+            if any(word in preview_lower for word in ["arbeit", "beruf", "projekt", "kunde", "auftrag", "geschäft", "firma", "praktikum", "internship"]):
                 themes.append("Arbeit/Beruf")
             
             # Finanzen
-            if any(word in preview_lower for word in ["rechnung", "kosten", "preis", "euro", "€", "steuer", "bank", "konto", "gehalt"]):
+            if any(word in preview_lower for word in ["rechnung", "kosten", "preis", "euro", "€", "steuer", "bank", "konto", "gehalt", "miete", "versicherung"]):
                 themes.append("Finanzen")
             
             # Code/Programmierung
-            if any(word in preview_lower for word in ["python", "java", "code", "programm", "funktion", "variable", "import", "def ", "class "]):
+            if any(word in preview_lower for word in ["python", "java", "code", "programm", "funktion", "variable", "import", "def ", "class ", "html", "css"]):
                 themes.append("Programmierung")
             
-            # Persönlich
-            if any(word in preview_lower for word in ["geburt", "familie", "freund", "urlaub", "reise", "hobby", "interesse"]):
-                themes.append("Persönliches")
+            # Persönlich/Familie
+            if any(word in preview_lower for word in ["geburt", "familie", "freund", "verwandt", "verwandtschaft"]):
+                themes.append("Familie/Persönlich")
+            
+            # Reisen/Freizeit
+            if any(word in preview_lower for word in ["urlaub", "reise", "trip", "hotel", "flug", "fahrkarte"]):
+                themes.append("Reisen/Freizeit")
+            
+            # Einkaufe/Shopping
+            if any(word in preview_lower for word in ["einkauf", "kassenzettel", "rechnung", "amazon", "shopping", "bestellt"]):
+                if "Finanzen" not in str(themes):
+                    themes.append("Shopping/Einkäufe")
             
             # Gesundheit
-            if any(word in preview_lower for word in ["arzt", "krank", "gesund", "medizin", "rezept", "apotheke"]):
+            if any(word in preview_lower for word in ["arzt", "krank", "gesund", "medizin", "rezept", "apotheke", "zahnarzt", "impf"]):
                 themes.append("Gesundheit")
             
             description = {
@@ -181,46 +214,90 @@ def _ensure_all_files_categorized_by_content(result, files_data, detail_level):
     return result
 
 def _get_category_from_content(file_data, detail_level):
-    """Bestimmt Kategorie basierend auf DateiINHALT (nicht Dateityp!)"""
+    """Bestimmt Kategorie basierend auf DateiINHALT (nicht Dateityp!)
+    
+    KONTEXT: Benutzer ging in HTL (Berufsschule) und studiert an einer FH (Fachhochschule)
+    HTL-Inhalte: Kostenrechnung, Betriebswirtschaft, technische Fächer
+    FH-Inhalte: Neuere Vorlesungen, Diplomarbeit, aktuelle Projekte
+    """
     preview = file_data["text_preview"].lower()
     ext = file_data["extension"].lower()
     
     # Analyse des Inhalts
     content_lower = preview.lower()
+    filename_lower = file_data["filename"].lower()
     
-    # Schule/Studium Inhalte
-    school_keywords = ["schule", "studium", "matura", "prüfung", "klausur", "semester", "vorlesung", "hausaufgabe"]
+    # ===== HTL vs. FH UNTERSCHEIDUNG (intelligente Kontextualisierung) =====
+    htl_keywords = [
+        "kostenrechnung", "betriebswirtschaft", "bw", "buchhaltung", "kalkulieren",
+        "deckungsbeitrag", "gewinn", "verlust", "betrieb", "kaufmann", "handel",
+        "lagerbestand", "bestellung", "lieferant", "lagerhaltung"
+    ]
+    
+    fh_keywords = [
+        "semester", "vorlesung", "diplomarbeit", "masterarbeit", "hochschule",
+        "fachhochschule", "klausur", "prüfung", "skript", "vorlesungsmitschrift",
+        "prüfungsordnung", "modulhandbuch"
+    ]
+    
+    is_htl_content = any(keyword in content_lower or keyword in filename_lower for keyword in htl_keywords)
+    is_fh_content = any(keyword in content_lower or keyword in filename_lower for keyword in fh_keywords)
+    
+    # Schule/Studium Inhalte mit HTL/FH Unterscheidung
+    school_keywords = ["schule", "studium", "matura", "prüfung", "klausur", "semester", "vorlesung", "hausaufgabe", "unterricht", "lehrplan"]
     if any(keyword in content_lower for keyword in school_keywords):
+        # Spezifische Fächer erkennen
         if "mathe" in content_lower or "mathematik" in content_lower:
-            return "Schule / Mathematik"
+            folder = "Mathematik"
         elif "deutsch" in content_lower or "literatur" in content_lower:
-            return "Schule / Deutsch"
+            folder = "Deutsch"
         elif "englisch" in content_lower or "english" in content_lower:
-            return "Schule / Englisch"
+            folder = "Englisch"
         elif "informatik" in content_lower or "programmierung" in content_lower:
-            return "Schule / Informatik"
+            folder = "Informatik"
+        elif "physik" in content_lower:
+            folder = "Physik"
+        elif "chemie" in content_lower:
+            folder = "Chemie"
+        elif "biologie" in content_lower:
+            folder = "Biologie"
         else:
-            return "Schule / Sonstiges"
+            folder = "Sonstiges"
+        
+        # HTL vs FH Unterscheidung
+        if is_htl_content:
+            return f"HTL / {folder}"
+        elif is_fh_content:
+            return f"FH / {folder}"
+        else:
+            return f"Schule / {folder}"
     
-    # Arbeit/Beruf
-    work_keywords = ["arbeit", "beruf", "projekt", "kunde", "auftrag", "geschäft", "firma", "kollege", "meeting"]
+    # Arbeit/Beruf/Praktikum
+    work_keywords = ["arbeit", "beruf", "projekt", "kunde", "auftrag", "geschäft", "firma", "kollege", "meeting", "praktikum", "internship"]
     if any(keyword in content_lower for keyword in work_keywords):
-        if "bewerbung" in content_lower or "lebenslauf" in content_lower:
-            return "Arbeit / Bewerbung"
-        elif "rechnung" in content_lower or "kosten" in content_lower:
+        if "bewerbung" in content_lower or "lebenslauf" in content_lower or "cv" in content_lower:
+            return "Bewerbung / Unterlagen"
+        elif "rechnung" in content_lower or "kosten" in content_lower or "budget" in content_lower:
             return "Arbeit / Finanzen"
+        elif "praktikum" in content_lower or "internship" in content_lower:
+            return "Praktikum / Unterlagen"
         else:
             return "Arbeit / Projekt"
     
-    # Finanzen
-    finance_keywords = ["rechnung", "kosten", "preis", "euro", "€", "steuer", "bank", "konto", "gehalt", "miete"]
+    # Finanzen (ABER: Kostenrechnung könnte HTL-Material sein!)
+    finance_keywords = ["rechnung", "kosten", "preis", "euro", "€", "steuer", "bank", "konto", "gehalt", "miete", "zinsen", "versicherung"]
     if any(keyword in content_lower for keyword in finance_keywords):
-        if "strom" in content_lower or "energie" in content_lower:
+        # Überprüfe ob es HTL-Material ist (Kostenrechnung ist ein HTL-Fach)
+        if is_htl_content or ("kostenrechnung" in content_lower and "betrieb" in content_lower):
+            return "HTL / Betriebswirtschaft"
+        elif "strom" in content_lower or "energie" in content_lower:
             return "Finanzen / Stromrechnung"
-        elif "miete" in content_lower or "wohnung" in content_lower:
-            return "Finanzen / Miete"
-        elif "steuer" in content_lower:
+        elif "miete" in content_lower or "wohnung" in content_lower or "nebenkosten" in content_lower:
+            return "Finanzen / Miete & Wohnung"
+        elif "steuer" in content_lower or "steuererklärung" in content_lower:
             return "Finanzen / Steuern"
+        elif "versicherung" in content_lower or "versichert" in content_lower:
+            return "Finanzen / Versicherung"
         else:
             return "Finanzen / Rechnungen"
     
@@ -231,20 +308,24 @@ def _get_category_from_content(file_data, detail_level):
             return "Programmierung / Python"
         elif "java" in content_lower:
             return "Programmierung / Java"
-        elif "html" in content_lower or "css" in content_lower:
+        elif "html" in content_lower or "css" in content_lower or "javascript" in content_lower:
             return "Programmierung / Web"
         else:
             return "Programmierung / Code"
     
-    # Persönliches
-    personal_keywords = ["geburt", "familie", "freund", "urlaub", "reise", "hobby", "interesse", "einkauf", "kassenzettel"]
+    # Persönliches & Freizeit
+    personal_keywords = ["geburt", "familie", "freund", "urlaub", "reise", "hobby", "interesse", "einkauf", "kassenzettel", "event", "party", "wedding"]
     if any(keyword in content_lower for keyword in personal_keywords):
-        if "urlaub" in content_lower or "reise" in content_lower:
-            return "Persönlich / Reisen"
-        elif "einkauf" in content_lower or "kassenzettel" in content_lower:
+        if "urlaub" in content_lower or "reise" in content_lower or "trip" in content_lower:
+            return "Freizeit / Reisen"
+        elif "einkauf" in content_lower or "kassenzettel" in content_lower or "shopping" in content_lower:
             return "Persönlich / Einkäufe"
+        elif "familie" in content_lower or "geburt" in content_lower:
+            return "Familie / Dokumente"
+        elif "freund" in content_lower or "party" in content_lower or "event" in content_lower:
+            return "Freizeit / Aktivitäten"
         else:
-            return "Persönlich / Dokumente"
+            return "Persönlich / Sonstiges"
     
     # Bilder (basierend auf OCR-Text)
     if ext in [".jpg", ".jpeg", ".png", ".webp"]:
@@ -261,7 +342,7 @@ def _get_category_from_content(file_data, detail_level):
     if detail_level == "viel":
         # Sehr spezifisch
         if "diplomarbeit" in content_lower:
-            return "Studium / Diplomarbeit"
+            return "FH / Diplomarbeit"
         elif "fahrzeug" in content_lower or "auto" in content_lower:
             return "Transport / Fahrzeug"
         elif "gesundheit" in content_lower or "arzt" in content_lower:

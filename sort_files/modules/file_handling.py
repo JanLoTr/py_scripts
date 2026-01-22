@@ -299,30 +299,33 @@ class FileProcessor:
             elif ext == ".pdf":
                 try:
                     text = ""
-                    # MEHR SEITEN ANALYSIEREN (bis zu 10 oder 25% der Seiten)
+                    # VERBESSERTE PDF-ANALYSE: Mehr Seiten für besseren Kontext
                     with pdfplumber.open(file_path) as pdf:
                         total_pages = len(pdf.pages)
-                        # Analysiere bis zu 10 Seiten oder 25% der Seiten, je nachdem was kleiner ist
-                        pages_to_analyze = min(10, max(2, total_pages // 4))
+                        # Analysiere bis zu 15 Seiten oder 33% der Seiten (mehr als vorher!)
+                        pages_to_analyze = min(15, max(3, total_pages // 3))
                         
                         for i, page in enumerate(pdf.pages[:pages_to_analyze]):
                             page_text = page.extract_text()
-                            if page_text:
-                                text += f"\n--- Seite {i+1}/{total_pages} ---\n{page_text[:800]}"
+                            if page_text and page_text.strip():
+                                text += f"\n--- Seite {i+1}/{total_pages} ---\n{page_text[:1000]}"
                             else:
-                                # Versuche OCR für gescannte PDFs
+                                # Versuche OCR für gescannte PDFs (Seiten ohne erkannten Text)
                                 try:
                                     images = convert_from_path(file_path, first_page=i+1, last_page=i+1)
                                     if images:
                                         page_text = pytesseract.image_to_string(images[0])
                                         if page_text.strip():
-                                            text += f"\n--- Seite {i+1}/{total_pages} (OCR) ---\n{page_text[:800]}"
+                                            text += f"\n--- Seite {i+1}/{total_pages} [OCR] ---\n{page_text[:1000]}"
                                 except:
                                     pass
                     
-                    return text.strip() or "PDF (kein Text extrahierbar)"
+                    if text.strip():
+                        return f"PDF ({total_pages} Seiten):{text[:12000]}"  # Maximal 12000 Zeichen
+                    else:
+                        return f"PDF ({total_pages} Seiten, kein Text extrahierbar)"
                 except Exception as e:
-                    return f"PDF-Datei (Fehler: {str(e)[:50]})"
+                    return f"PDF-Datei ({total_pages} Seiten, Fehler: {str(e)[:50]})"
             
             # Word
             elif ext == ".docx":
