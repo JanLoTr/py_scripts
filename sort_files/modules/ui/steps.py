@@ -227,7 +227,7 @@ def render_step3(file_processor):
             
             with col_detail:
                 detail_level = st.selectbox(
-                    "📊 Detail-Level",
+                    "� Ordner-Struktur",
                     ["wenig", "mittel", "viel"],
                     index=["wenig", "mittel", "viel"].index(get_state('detail_level', 'mittel')),
                     key="detail_level_step3"

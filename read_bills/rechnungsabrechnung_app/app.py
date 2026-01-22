@@ -223,13 +223,57 @@ def main():
                             st.metric("Gesamtbetrag", f"€ {total:.2f}")
                         
                         with col3:
-                            if st.button("💾 Speichern", use_container_width=True):
-                                st.session_state.processed_invoices[uploaded_file.name] = {
-                                    "products": edited_df.to_dict("records"),
-                                    "total_amount": total,
-                                    "filename": uploaded_file.name
-                                }
-                                st.success("✅ Rechnung gespeichert!")
+                            st.metric("Gesamt", f"€ {total:.2f}")
+                        
+                        # Speichern mit Namensgebung
+                        st.divider()
+                        st.subheader("💾 Speichern")
+                        
+                        col_save1, col_save2 = st.columns(2)
+                        
+                        with col_save1:
+                            # Auto-Generierung eines Namens vorschlagen
+                            from datetime import datetime
+                            default_name = f"{datetime.now().strftime('%Y-%m-%d')}_Supermarkt_{total:.2f}€"
+                            invoice_name = st.text_input(
+                                "Name für die Rechnung",
+                                value=default_name,
+                                help="Format: Datum_Supermarkt_Preis z.B. 2026-01-22_Edeka_45.50€"
+                            )
+                        
+                        with col_save2:
+                            if st.button("💾 Speichern", use_container_width=True, type="primary"):
+                                try:
+                                    # Speichere CSV mit Produkten
+                                    csv_filename = f"{invoice_name}.csv"
+                                    csv_path = PROCESSED_DIR / csv_filename
+                                    edited_df.to_csv(csv_path, index=False, sep=";")
+                                    
+                                    # Speichere auch die Original-Scan-Datei
+                                    original_file_path = Path(st.session_state.current_invoice["file_path"])
+                                    if original_file_path.exists():
+                                        scan_extension = original_file_path.suffix
+                                        scan_filename = f"{invoice_name}_Scan{scan_extension}"
+                                        scan_path = PROCESSED_DIR / scan_filename
+                                        
+                                        # Kopiere die Datei
+                                        import shutil
+                                        shutil.copy2(original_file_path, scan_path)
+                                    
+                                    # Speichere in Session State
+                                    st.session_state.processed_invoices[invoice_name] = {
+                                        "products": edited_df.to_dict("records"),
+                                        "total_amount": total,
+                                        "filename": invoice_name,
+                                        "csv_path": str(csv_path),
+                                        "scan_path": str(scan_path) if original_file_path.exists() else None
+                                    }
+                                    
+                                    st.success(f"✅ Rechnung gespeichert als '{invoice_name}'!")
+                                    st.info(f"📁 Speicherort: {PROCESSED_DIR}")
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Fehler beim Speichern: {e}")
                     else:
                         st.warning("Keine Produkte erkannt. Bitte überprüfe die Eingabe.")
     
@@ -239,16 +283,60 @@ def main():
         if st.session_state.processed_invoices:
             for filename, invoice_data in st.session_state.processed_invoices.items():
                 with st.expander(f"📄 {filename}"):
+                    col_info1, col_info2, col_info3 = st.columns(3)
+                    
                     df = pd.DataFrame(invoice_data["products"])
+                    
+                    with col_info1:
+                        st.metric("Produkte", len(df))
+                    with col_info2:
+                        st.metric("Summe", f"€ {invoice_data['total_amount']:.2f}")
+                    with col_info3:
+                        pass
+                    
                     st.dataframe(df, use_container_width=True)
                     
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Produkte", len(df))
-                    with col2:
-                        st.metric("Summe", f"€ {invoice_data['total_amount']:.2f}")
-                    with col3:
-                        if st.button("🗑️ Löschen", key=f"delete_{filename}"):
+                    # Download-Buttons
+                    st.divider()
+                    col_dl1, col_dl2, col_dl3 = st.columns(3)
+                    
+                    with col_dl1:
+                        # CSV Download
+                        csv_buffer = df.to_csv(index=False, sep=";")
+                        st.download_button(
+                            label="📥 CSV herunterladen",
+                            data=csv_buffer,
+                            file_name=f"{filename}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                    
+                    with col_dl2:
+                        # Scan-Datei Download (wenn vorhanden)
+                        if invoice_data.get("scan_path") and Path(invoice_data["scan_path"]).exists():
+                            scan_path = Path(invoice_data["scan_path"])
+                            with open(scan_path, "rb") as f:
+                                st.download_button(
+                                    label="📷 Scan herunterladen",
+                                    data=f.read(),
+                                    file_name=scan_path.name,
+                                    mime="image/png",
+                                    use_container_width=True
+                                )
+                    
+                    with col_dl3:
+                        if st.button("🗑️ Löschen", use_container_width=True, key=f"delete_{filename}"):
+                            # Lösche auch die Dateien
+                            if invoice_data.get("csv_path"):
+                                csv_path = Path(invoice_data["csv_path"])
+                                if csv_path.exists():
+                                    csv_path.unlink()
+                            
+                            if invoice_data.get("scan_path"):
+                                scan_path = Path(invoice_data["scan_path"])
+                                if scan_path.exists():
+                                    scan_path.unlink()
+                            
                             del st.session_state.processed_invoices[filename]
                             st.rerun()
         else:

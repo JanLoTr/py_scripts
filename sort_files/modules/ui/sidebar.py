@@ -26,24 +26,16 @@ def render_sidebar():
         st.markdown("---")
         
         # Section 2: KI-Parameter
-        st.write("### 🤖 KI-Parameter")
+        st.write("### 🤖 Ordner-Strukturierung")
         
         detail_level = st.selectbox(
-            "KI-Detailliertheit",
+            "Wieviele Ordner möchtest du?",
             ["wenig", "mittel", "viel"],
             index=["wenig", "mittel", "viel"].index(get_state('detail_level', "mittel")),
             key="detail_level_select",
-            help="Wie spezifisch sollen die Kategorien sein?"
+            help="Wie viele spezifische Unterordner sollen erstellt werden?"
         )
         update_state('detail_level', detail_level)
-        
-        max_files = st.slider(
-            "Maximale Dateien",
-            10, 300, get_state('max_files', 100),
-            key="max_files_slider",
-            help="Begrenzen Sie die Anzahl der zu verarbeitenden Dateien"
-        )
-        update_state('max_files', max_files)
         
         st.markdown("---")
         
@@ -98,17 +90,20 @@ def render_sidebar():
         
         with st.expander("📚 Detaillevel erklärt", expanded=False):
             st.markdown("""
-            **Wenig**: 5-8 breite Kategorien
+            **Wenig Ordner**: 5-8 breite Kategorien
+            - Alles in wenigen Hauptordnern
+            - Beispiel: "Dokumente", "Bilder", "Projekte"
             - Gut für schnelle Übersicht
-            - Beispiel: "Dokumente", "Bilder", "Code"
             
-            **Mittel**: 10-15 spezifischere Kategorien
-            - Balance zwischen Genauigkeit & Übersicht
-            - Beispiel: "Schule/Mathematik", "Arbeit/Projekte"
+            **Mittel**: 10-15 Unterordner
+            - Balance zwischen Übersicht & Struktur
+            - Beispiel: "Schule/Mathematik", "Arbeit/Projekte", "Finanzen/Steuern"
+            - **Empfohlen für die meisten**
             
-            **Viel**: 20+ sehr spezifische Kategorien
-            - Sehr detaillierte Kategorisierung
-            - Beispiel: "FH/Diplomarbeit", "HTL/Betriebswirtschaft"
+            **Viel Ordner**: 20+ spezifische Unterordner
+            - Sehr detaillierte Ordnerstruktur
+            - Beispiel: "FH/Diplomarbeit", "HTL/Betriebswirtschaft", "Finanzen/Stromrechnung"
+            - Gut wenn du eine sehr spezifische Struktur haben möchtest
             """)
         
         with st.expander("🔑 API Key Setup", expanded=False):
