@@ -195,6 +195,7 @@ def main():
     
     if not st.session_state.loaded_invoices:
         st.warning("❌ Keine Rechnungen gefunden. Bitte verwende zuerst die 'Rechnungsabrechnung App' um Rechnungen zu verarbeiten.")
+        st.info("💡 Tipp: Starte `streamlit run app.py` um Rechnungen hochzuladen und zu verarbeiten.")
         return
     
     st.success(f"✅ {len(st.session_state.loaded_invoices)} Rechnungen geladen")
@@ -379,9 +380,6 @@ def main():
     with tab3:
         st.subheader("📊 Statistik-Dashboard")
         
-        # Lade DataManager
-        data_manager = DataManager(PROCESSED_DIR.parent)
-        
         # Generiere Statistiken
         stats = data_manager.get_statistics()
         product_patterns = data_manager.get_product_patterns(
@@ -412,9 +410,6 @@ def main():
     
     with tab4:
         st.subheader("📈 Produkt-Analyse")
-        
-        # Lade DataManager
-        data_manager = DataManager(PROCESSED_DIR.parent)
         
         product_patterns = data_manager.get_product_patterns(
             st.session_state.brother1_name,

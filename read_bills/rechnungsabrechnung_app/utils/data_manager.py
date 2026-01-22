@@ -152,41 +152,49 @@ class DataManager:
             splits = inv.get("splits", {})
             
             for idx, product in enumerate(products):
+                product_name = None
+                price = 0
+                
+                # Handle both dict and potential other formats
                 if isinstance(product, dict):
                     product_name = product.get("produkt", "Unknown")
-                    
-                    if product_name not in product_patterns:
-                        product_patterns[product_name] = {
-                            "count": 0,
-                            "person1_100": 0,
-                            "person2_100": 0,
-                            "split_50_50": 0,
-                            "splits": [],
-                            "price_range": {"min": float('inf'), "max": 0}
-                        }
-                    
-                    pattern = product_patterns[product_name]
-                    pattern["count"] += 1
-                    
-                    # Aktualisiere Preis-Range
-                    price = product.get("preis", 0)
-                    pattern["price_range"]["min"] = min(pattern["price_range"]["min"], price)
-                    pattern["price_range"]["max"] = max(pattern["price_range"]["max"], price)
-                    
-                    # Finde Split für dieses Produkt
-                    for split_key, split_value in splits.items():
-                        if str(idx) in str(split_key):
-                            if isinstance(split_value, (list, tuple)) and len(split_value) >= 2:
-                                p1_percent, p2_percent = split_value[0], split_value[1]
-                                pattern["splits"].append((p1_percent, p2_percent))
-                                
-                                if p1_percent == 100:
-                                    pattern["person1_100"] += 1
-                                elif p2_percent == 100:
-                                    pattern["person2_100"] += 1
-                                elif p1_percent == 50:
-                                    pattern["split_50_50"] += 1
-                            break
+                    price = float(product.get("preis", 0))
+                else:
+                    continue
+                
+                if product_name not in product_patterns:
+                    product_patterns[product_name] = {
+                        "count": 0,
+                        "person1_100": 0,
+                        "person2_100": 0,
+                        "split_50_50": 0,
+                        "splits": [],
+                        "price_range": {"min": float('inf'), "max": 0},
+                        "products": []  # Store products for price calculation
+                    }
+                
+                pattern = product_patterns[product_name]
+                pattern["count"] += 1
+                pattern["products"].append(product)
+                
+                # Aktualisiere Preis-Range
+                pattern["price_range"]["min"] = min(pattern["price_range"]["min"], price)
+                pattern["price_range"]["max"] = max(pattern["price_range"]["max"], price)
+                
+                # Finde Split für dieses Produkt
+                for split_key, split_value in splits.items():
+                    if str(idx) in str(split_key):
+                        if isinstance(split_value, (list, tuple)) and len(split_value) >= 2:
+                            p1_percent, p2_percent = split_value[0], split_value[1]
+                            pattern["splits"].append((p1_percent, p2_percent))
+                            
+                            if p1_percent == 100:
+                                pattern["person1_100"] += 1
+                            elif p2_percent == 100:
+                                pattern["person2_100"] += 1
+                            elif p1_percent == 50:
+                                pattern["split_50_50"] += 1
+                        break
         
         # Cleanup price_range
         for product_name in product_patterns:
