@@ -27,14 +27,6 @@ def render_step1(file_processor):
             uploaded_files = st.file_uploader(
                 "Dateien auswählen",
                 accept_multiple_files=True,
-                type=[
-                    "pdf", "docx", "txt", "md", "rtf",
-                    "jpg", "jpeg", "png", "webp", "gif", "bmp",
-                    "py", "java", "js", "html", "css", "cpp", "c",
-                    "xlsx", "csv", "json", "xml",
-                    "zip", "rar",
-                    "mp3", "mp4", "wav"
-                ],
                 label_visibility="collapsed",
                 key="file_uploader"
             )
@@ -52,14 +44,14 @@ def render_step1(file_processor):
 
 def _handle_file_extraction(file_processor, uploaded_files, input_dir):
     """Behandelt Dateiextraktion"""
-    with st.spinner("Extrahiere Dateiinformationen..."):
+    with st.spinner("⏳ Extrahiere Dateiinformationen..."):
         try:
             temp_dir = file_processor.create_temp_directory()
             
             if uploaded_files:
                 # Hochgeladene Dateien speichern
                 max_files = get_state('max_files', 100)
-                for uploaded_file in uploaded_files[:max_files]:
+                for uploaded_file in uploaded_files:  # KEINE Begrenzung!
                     file_path = temp_dir / uploaded_file.name
                     with open(file_path, 'wb') as f:
                         f.write(uploaded_file.getbuffer())
@@ -68,25 +60,39 @@ def _handle_file_extraction(file_processor, uploaded_files, input_dir):
             elif input_dir:
                 source_dir = Path(input_dir)
                 if not source_dir.exists():
-                    st.error("Verzeichnis existiert nicht!")
+                    st.error("❌ Verzeichnis existiert nicht!")
                     return
             else:
-                st.warning("Bitte Dateien hochladen oder Verzeichnis angeben!")
+                st.warning("⚠️ Bitte Dateien hochladen oder Verzeichnis angeben!")
                 return
             
-            # Dateien extrahieren
-            files_data = file_processor.extract_all_files(source_dir, get_state('max_files', 100))
+            # Dateien extrahieren - KEINE max_files Limit hier!
+            files_data = file_processor.extract_all_files(source_dir, max_files=10000)  # Sehr hoch
             
             # Gruppierte Statistik hinzufügen
             _add_file_type_statistics(files_data)
             
             update_state('files_data', files_data)
             update_state('processing_step', 2)
-            st.success(f"✅ {files_data['metadata']['total_files']} Dateien verarbeitet")
+            
+            # Bessere Anzeige
+            total_files = files_data['metadata']['total_files']
+            total_found = files_data['metadata'].get('total_found', total_files)
+            not_processed = sum(1 for f in files_data['files'] if not f.get('is_processed', True))
+            
+            st.success(f"✅ {total_files} Dateien verarbeitet ({not_processed} nicht verarbeitbar → `_nicht_verarbeitet` Ordner)")
+            
+            if files_data['metadata'].get('skipped_files'):
+                with st.expander(f"⚠️ Info: {len(files_data['metadata']['skipped_files'])} Dateien nicht verarbeitbar"):
+                    for skipped in files_data['metadata']['skipped_files'][:10]:
+                        st.write(f"• {skipped}")
+                    if len(files_data['metadata']['skipped_files']) > 10:
+                        st.write(f"... und {len(files_data['metadata']['skipped_files']) - 10} weitere")
+            
             st.rerun()
             
         except Exception as e:
-            st.error(f"Fehler bei Dateiextraktion: {str(e)[:200]}")
+            st.error(f"❌ Fehler bei Dateiextraktion: {str(e)[:200]}")
 
 def _add_file_type_statistics(files_data):
     """Fügt gruppierte Dateitypen-Statistik hinzu"""
@@ -187,33 +193,6 @@ def render_step2(file_processor):
                     st.progress(percentage / 100, text=f"{count}")
         else:
             st.info("👈 Bitte laden Sie zuerst Dateien in Schritt 1 hoch")
-        
-        # KI-Analyse Buttons
-        api_key = get_state('api_key', "")
-        detail_level = get_state('detail_level', "mittel")
-        
-        if api_key:
-            if st.button("🤖 Mit KI analysieren", type="primary", use_container_width=True, key="analyze_ai_button"):
-                with st.spinner("KI analysiert..."):
-                    categories = analyze_with_groq(
-                        files_data["files"],
-                        api_key,
-                        detail_level
-                    )
-                    update_state('categories', categories)
-                    update_state('processing_step', 3)
-                    st.rerun()
-        else:
-            st.warning("API Key benötigt")
-            
-            if st.button("📊 Einfache Kategorien", use_container_width=True, key="simple_categories_button"):
-                with st.spinner("Erstelle Kategorien..."):
-                    categories = create_content_based_fallback_categories(files_data["files"], detail_level)
-                    update_state('categories', categories)
-                    update_state('processing_step', 3)
-                    st.rerun()
-    else:
-        st.info("⏳ Dateien extrahieren")
 
 def render_step3(file_processor):
     """Rendert Schritt 3: Dateiorganisation"""

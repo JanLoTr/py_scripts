@@ -441,7 +441,7 @@ class FileProcessor:
         all_files = []
         for file_path in input_path.rglob("*"):
             if file_path.is_file():
-                # Überspringe sehr große Dateien (>100MB)
+                # Überspringe sehr große Dateien (>100MB) - aber merken sie sich!
                 try:
                     if file_path.stat().st_size > 100 * 1024 * 1024:
                         skipped_files.append(f"{file_path.name} (zu groß >100MB)")
@@ -451,8 +451,9 @@ class FileProcessor:
                 
                 all_files.append(file_path)
         
-        # Begrenze auf max_files
-        all_files = all_files[:max_files]
+        # KEINE Begrenzung hier - alle Dateien werden verarbeitet!
+        # Die max_files wird später angewendet nur für die Anzeige
+        total_found = len(all_files)
         
         if not all_files:
             st.warning("Keine Dateien im Verzeichnis gefunden")
@@ -505,10 +506,11 @@ class FileProcessor:
         progress_bar.empty()
         status_text.empty()
         
-        # Ergebnis mit KORREKTER Dateitypen-Statistik
+        # Ergebnis mit ALLEN Dateien
         result = {
             "metadata": {
                 "total_files": len(files_data),
+                "total_found": total_found,
                 "file_types": self._get_detailed_file_types(files_data),  # Verbesserte Statistik
                 "skipped_files": skipped_files,
                 "processed_date": time.strftime("%Y-%m-%d %H:%M:%S"),
