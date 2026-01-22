@@ -3,6 +3,9 @@ import streamlit as st
 import tempfile
 from pathlib import Path
 import shutil
+import os
+import platform
+import subprocess
 from modules.state import get_state, update_state
 from modules.ai_analysis import analyze_with_groq, create_content_based_fallback_categories
 from modules.file_handling import FileProcessor
@@ -332,8 +335,30 @@ def _handle_file_organization(file_processor, target_dir):
         from .downloads import prepare_download_data
         prepare_download_data(categories, files_data)
         
-        # Cleanup-Button
-        if st.button("🗑️ Temporäre Dateien löschen", key="cleanup_button"):
-            file_processor.cleanup_temp_directory()
-            st.success("Aufgeräumt")
-            st.rerun()
+        # Buttons
+        col_final1, col_final2 = st.columns(2)
+        
+        with col_final1:
+            if st.button("📂 Ordner öffnen", type="primary", use_container_width=True, key="open_folder_button"):
+                _open_folder(str(target_path))
+        
+        with col_final2:
+            if st.button("🗑️ Temporäre Dateien löschen", use_container_width=True, key="cleanup_button"):
+                file_processor.cleanup_temp_directory()
+                st.success("✅ Aufgeräumt!")
+                st.rerun()
+
+def _open_folder(folder_path):
+    """Öffnet den Ordner mit dem Standard-Dateimanager"""
+    try:
+        if platform.system() == 'Windows':
+            os.startfile(folder_path)
+            st.success(f"📂 Ordner wird geöffnet: {folder_path}")
+        elif platform.system() == 'Darwin':  # macOS
+            subprocess.Popen(['open', folder_path])
+            st.success(f"📂 Ordner wird geöffnet: {folder_path}")
+        else:  # Linux
+            subprocess.Popen(['xdg-open', folder_path])
+            st.success(f"📂 Ordner wird geöffnet: {folder_path}")
+    except Exception as e:
+        st.error(f"❌ Konnte Ordner nicht öffnen: {str(e)}")
