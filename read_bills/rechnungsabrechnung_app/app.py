@@ -8,8 +8,8 @@ from PIL import Image
 import pytesseract
 from utils.file_utils import save_uploaded_file, delete_file
 from utils.text_processing import clean_ocr_text, split_into_lines
-from utils.groq_utils import initialize_groq_client, extract_invoice_products, improve_invoice_data
-from config import UPLOAD_DIR
+from utils.groq_utils import initialize_groq_client, extract_invoice_products, improve_invoice_data, generate_receipt_summary
+from config import UPLOAD_DIR, PROCESSED_DIR
 
 # Seitenkonfiguration
 st.set_page_config(
@@ -176,181 +176,163 @@ def main():
                                     "products": products
                                 }
                 
-                # Zeige verarbeitete Daten an
-if st.session_state.current_invoice:
-                    st.divider()
-                    
-                    # Button zum Öffnen der Rechnung
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.subheader("🤖 KI-Verbesserung")
-                    with col2:
-                        if st.button("📂 Datei öffnen", use_container_width=True):
-                            try:
-                                file_path = Path(st.session_state.current_invoice["file_path"])
-                                if file_path.exists():
-                                    with open(file_path, "rb") as f:
-                                        st.download_button(
-                                            label="💾 Herunterladen",
-                                            data=f.read(),
-                                            file_name=file_path.name,
-                                            mime="image/png" if file_path.suffix.lower() in ['.png', '.jpg', '.jpeg'] else "application/octet-stream",
-                                            use_container_width=True
-                                        )
-                            except Exception as e:
-                                st.error(f"Fehler beim Öffnen der Datei: {e}")
-                    
-                    # Verbesserungsschritt mit KI
-                    if "improved_invoice" not in st.session_state:
-                        if st.button("✨ Mit KI verbessern", use_container_width=True, type="primary"):
-                            if not st.session_state.api_key:
-                                st.error("❌ Bitte gib den Groq API Key in der Seitenleiste ein!")
-                            else:
-                                with st.spinner("🤖 Analysiere Rechnung mit KI..."):
-                                    client = initialize_groq_client(st.session_state.api_key)
-                                    improved = improve_invoice_data(
-                                        client, 
-                                        st.session_state.current_invoice["raw_text"]
-                                    )
-                                
-                                if improved:
-                                    st.session_state.improved_invoice = improved
-                                    st.success("✅ Rechnung verbessert!")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Fehler bei der Verbesserung")
-                    else:
-                        # Zeige verbesserte Daten
-                        st.success("✅ Rechnung wurde mit KI verbessert")
-                        
-                        improved = st.session_state.improved_invoice
-                        
-                        # Zeige Shop und Metadaten
-                        col_info1, col_info2 = st.columns(2)
-                        with col_info1:
-                            st.metric("🏪 Shop", improved.get("shop", "Unbekannt"))
-                        with col_info2:
-                            st.metric("💰 Gesamtbetrag", f"€ {improved.get('total', 0):.2f}")
-                        
-                        if improved.get("notes"):
-                            with st.expander("📝 KI-Notizen"):
-                                st.write(improved["notes"])
-                        
-                        st.divider()
-                        st.subheader("📊 Erkannte Produkte und Preise")
-                        
-                        # Konvertiere zu DataFrame für Bearbeitung
-                        products_df = pd.DataFrame(improved.get("products", []))
-                        
-                        if len(products_df) > 0:
-                            # Bearbeitbare Tabelle
-                            edited_df = st.data_editor(
-                                products_df,
-                                use_container_width=True,
-                                num_rows="dynamic",
-                                key="products_editor"
-                            )
-                            
-                            # Zusammenfassung
+                        # Zeige verarbeitete Daten an
+                        if st.session_state.current_invoice:
                             st.divider()
-                            col1, col2, col3 = st.columns(3)
                             
+                            # Button zum Öffnen der Rechnung
+                            col1, col2 = st.columns([3, 1])
                             with col1:
-                                st.metric("Anzahl Produkte", len(edited_df))
-                            
+                                st.subheader("🤖 KI-Verbesserung")
                             with col2:
-                                total = edited_df["preis"].astype(float).sum()
-                                st.metric("Gesamtbetrag", f"€ {total:.2f}")
-                            
-                            with col3:
-                                st.metric("Gesamt", f"€ {total:.2f}")
-                            
-                            # Speichern mit Namensgebung
-                            st.divider()
-                            st.subheader("💾 Speichern")
-                            
-                            col_save1, col_save2 = st.columns(2)
-                            
-                            with col_save1:
-                                # Auto-Generierung eines Namens vorschlagen
-                                from datetime import datetime
-                                shop_name = improved.get("shop", "Supermarkt").replace(" ", "")
-                                default_name = f"{datetime.now().strftime('%Y-%m-%d')}_{shop_name}_{total:.2f}€"
-                                invoice_name = st.text_input(
-                                    "Name für die Rechnung",
-                                    value=default_name,
-                                    help="Format: Datum_Shop_Preis z.B. 2026-01-22_Spar_45.50€"
-                                )
-                            
-                            with col_save2:
-                                if st.button("💾 Speichern", use_container_width=True, type="primary"):
+                                if st.button("📂 Datei öffnen", use_container_width=True):
                                     try:
-                                        # Speichere CSV mit Produkten
-                                        csv_filename = f"{invoice_name}.csv"
-                                        csv_path = PROCESSED_DIR / csv_filename
-                                        edited_df.to_csv(csv_path, index=False, sep=";")
-                                        
-                                        # Speichere auch die Original-Scan-Datei
-                                        original_file_path = Path(st.session_state.current_invoice["file_path"])
-                                        if original_file_path.exists():
-                                            scan_extension = original_file_path.suffix
-                                            scan_filename = f"{invoice_name}_Scan{scan_extension}"
-                                            scan_path = PROCESSED_DIR / scan_filename
-                                            
-                                            # Kopiere die Datei
-                                            import shutil
-                                            shutil.copy2(original_file_path, scan_path)
-                                        
-                                        # Speichere in Session State
-                                        st.session_state.processed_invoices[invoice_name] = {
-                                            "products": edited_df.to_dict("records"),
-                                            "total_amount": total,
-                                            "filename": invoice_name,
-                                            "csv_path": str(csv_path),
-                                            "scan_path": str(scan_path) if original_file_path.exists() else None,
-                                            "shop": improved.get("shop", "Unbekannt")
-                                        }
-                                        
-                                        st.success(f"✅ Rechnung gespeichert als '{invoice_name}'!")
-                                        st.info(f"📁 Speicherort: {PROCESSED_DIR}")
-                                        
+                                        file_path = Path(st.session_state.current_invoice["file_path"])
+                                        if file_path.exists():
+                                            with open(file_path, "rb") as f:
+                                                st.download_button(
+                                                    label="💾 Herunterladen",
+                                                    data=f.read(),
+                                                    file_name=file_path.name,
+                                                    mime="image/png" if file_path.suffix.lower() in ['.png', '.jpg', '.jpeg'] else "application/octet-stream",
+                                                    use_container_width=True
+                                                )
                                     except Exception as e:
-                                        st.error(f"❌ Fehler beim Speichern: {e}")
-                        else:
-                            st.warning("Keine Produkte erkannt")
-                    
-                    if st.session_state.current_invoice.get("products"):
-                        df = pd.DataFrame(st.session_state.current_invoice["products"])
-                        
-                        # Bearbeitbare Tabelle
-                        edited_df = st.data_editor(
-                            df,
-                            use_container_width=True,
-                            num_rows="dynamic",
-                            key="products_editor"
-                        )
-                        
-                        # Zusammenfassung
-                        st.divider()
-                        col1, col2, col3 = st.columns(3)
-                        
-                        with col1:
-                            st.metric("Anzahl Produkte", len(edited_df))
-                        
-                        with col2:
-                            total = edited_df["preis"].astype(float).sum()
-                            st.metric("Gesamtbetrag", f"€ {total:.2f}")
-                        
-                        with col3:
-                            if st.button("💾 Speichern", use_container_width=True):
-                                st.session_state.processed_invoices[uploaded_file.name] = {
-                                    "products": edited_df.to_dict("records"),
-                                    "total_amount": total,
-                                    "filename": uploaded_file.name
-                                }
-                                st.success("✅ Rechnung gespeichert!")
-                    else:
-                        st.warning("Keine Produkte erkannt. Bitte überprüfe die Eingabe.")
+                                        st.error(f"Fehler beim Öffnen der Datei: {e}")
+                            
+                            # Verbesserungsschritt mit KI
+                            if "improved_invoice" not in st.session_state:
+                                if st.button("✨ Mit KI verbessern", use_container_width=True, type="primary"):
+                                    if not st.session_state.api_key:
+                                        st.error("❌ Bitte gib den Groq API Key in der Seitenleiste ein!")
+                                    else:
+                                        with st.spinner("🤖 Analysiere Rechnung mit KI..."):
+                                            client = initialize_groq_client(st.session_state.api_key)
+                                            improved = improve_invoice_data(
+                                                client, 
+                                                st.session_state.current_invoice["raw_text"]
+                                            )
+                                        
+                                        if improved:
+                                            st.session_state.improved_invoice = improved
+                                            st.success("✅ Rechnung verbessert!")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Fehler bei der Verbesserung")
+                            else:
+                                # Zeige verbesserte Daten
+                                st.success("✅ Rechnung wurde mit KI verbessert")
+                                
+                                improved = st.session_state.improved_invoice
+                                
+                                # Zeige Shop und Metadaten
+                                col_info1, col_info2 = st.columns(2)
+                                with col_info1:
+                                    st.metric("🏪 Shop", improved.get("shop", "Unbekannt"))
+                                with col_info2:
+                                    st.metric("💰 Gesamtbetrag", f"€ {improved.get('total', 0):.2f}")
+                                
+                                if improved.get("notes"):
+                                    with st.expander("📝 KI-Notizen"):
+                                        st.write(improved["notes"])
+                                
+                                st.divider()
+                                
+                                # Generiere humorvolle Zusammenfassung
+                                if st.button("🎯 Einkaufsanalyse", use_container_width=True):
+                                    with st.spinner("🤖 Analysiere Einkauf..."):
+                                        client = initialize_groq_client(st.session_state.api_key)
+                                        summary = generate_receipt_summary(
+                                            client,
+                                            improved.get("shop", "Unbekannt"),
+                                            improved.get("products", []),
+                                            improved.get("total", 0)
+                                        )
+                                        if summary:
+                                            st.info(f"💬 {summary}")
+                                
+                                st.divider()
+                                st.subheader("📊 Erkannte Produkte und Preise")
+                                
+                                # Konvertiere zu DataFrame für Bearbeitung
+                                products_df = pd.DataFrame(improved.get("products", []))
+                                
+                                if len(products_df) > 0:
+                                    # Bearbeitbare Tabelle
+                                    edited_df = st.data_editor(
+                                        products_df,
+                                        use_container_width=True,
+                                        num_rows="dynamic",
+                                        key="products_editor"
+                                    )
+                                    
+                                    # Zusammenfassung
+                                    st.divider()
+                                    col1, col2, col3 = st.columns(3)
+                                    
+                                    with col1:
+                                        st.metric("Anzahl Produkte", len(edited_df))
+                                    
+                                    with col2:
+                                        total = edited_df["preis"].astype(float).sum()
+                                        st.metric("Gesamtbetrag", f"€ {total:.2f}")
+                                    
+                                    with col3:
+                                        st.metric("Gesamt", f"€ {total:.2f}")
+                                    
+                                    # Speichern mit Namensgebung
+                                    st.divider()
+                                    st.subheader("💾 Speichern")
+                                    
+                                    col_save1, col_save2 = st.columns(2)
+                                    
+                                    with col_save1:
+                                        # Auto-Generierung eines Namens vorschlagen
+                                        from datetime import datetime
+                                        shop_name = improved.get("shop", "Supermarkt").replace(" ", "")
+                                        default_name = f"{datetime.now().strftime('%Y-%m-%d')}_{shop_name}_{total:.2f}€"
+                                        invoice_name = st.text_input(
+                                            "Name für die Rechnung",
+                                            value=default_name,
+                                            help="Format: Datum_Shop_Preis z.B. 2026-01-22_Spar_45.50€"
+                                        )
+                                    
+                                    with col_save2:
+                                        if st.button("💾 Speichern", use_container_width=True, type="primary"):
+                                            try:
+                                                # Speichere CSV mit Produkten
+                                                csv_filename = f"{invoice_name}.csv"
+                                                csv_path = PROCESSED_DIR / csv_filename
+                                                edited_df.to_csv(csv_path, index=False, sep=";")
+                                                
+                                                # Speichere auch die Original-Scan-Datei
+                                                original_file_path = Path(st.session_state.current_invoice["file_path"])
+                                                if original_file_path.exists():
+                                                    scan_extension = original_file_path.suffix
+                                                    scan_filename = f"{invoice_name}_Scan{scan_extension}"
+                                                    scan_path = PROCESSED_DIR / scan_filename
+                                                    
+                                                    # Kopiere die Datei
+                                                    import shutil
+                                                    shutil.copy2(original_file_path, scan_path)
+                                                
+                                                # Speichere in Session State
+                                                st.session_state.processed_invoices[invoice_name] = {
+                                                    "products": edited_df.to_dict("records"),
+                                                    "total_amount": total,
+                                                    "filename": invoice_name,
+                                                    "csv_path": str(csv_path),
+                                                    "scan_path": str(scan_path) if original_file_path.exists() else None,
+                                                    "shop": improved.get("shop", "Unbekannt")
+                                                }
+                                                
+                                                st.success(f"✅ Rechnung gespeichert als '{invoice_name}'!")
+                                                st.info(f"📁 Speicherort: {PROCESSED_DIR}")
+                                                
+                                            except Exception as e:
+                                                st.error(f"❌ Fehler beim Speichern: {e}")
+                                else:
+                                    st.warning("Keine Produkte erkannt")
     
     with tab2:
         st.subheader("📋 Verlauf der Rechnungen")

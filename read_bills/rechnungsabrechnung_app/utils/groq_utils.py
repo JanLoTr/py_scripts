@@ -305,23 +305,217 @@ def correct_product_name(product_name: str) -> str:
     
     return product_name if product_name else "unerkenntlich"
 
-def validate_price(price_str: str) -> Optional[float]:
+def validate_prices_and_detect_anomalies(client, products: List[Dict]) -> Optional[Dict]:
     """
-    Validiert und konvertiert einen Preisstring
+    Validiert Preise und erkennt anomale Produkte/Preise
+    
+    Detektiert:
+    - Unrealistisch hohe oder niedrige Preise
+    - Verdächtige Produkt-Preis-Kombinationen
+    - Mögliche Duplikate oder ähnliche Produkte
     
     Args:
-        price_str: Der zu validierende Preis
+        client: Groq-Client
+        products: Liste von Produkten mit Preisen
         
     Returns:
-        Der Preis als Float oder None
+        Dict mit Validierungsergebnissen oder None
     """
     try:
-        # Entferne Währungssymbole und extra Spaces
-        cleaned = price_str.replace("€", "").replace("$", "").strip()
-        # Deutsche Notation: Komma als Dezimaltrennzeichen
-        cleaned = cleaned.replace(",", ".")
-        return float(cleaned)
-    except ValueError:
+        if not client or not products:
+            return None
+        
+        products_text = "\n".join([f"- {p['produkt']}: €{p['preis']:.2f}" for p in products])
+        
+        prompt = f"""Validiere diese Einkaufsprodukte und erkenne Anomalien:
+
+{products_text}
+
+Prüfe auf:
+1. Unrealistisch hohe/niedrige Preise für das Produkt
+2. Verdächtige Produkt-Preis-Kombinationen
+3. Mögliche Duplikate oder sehr ähnliche Produkte
+4. Plausibilität des Gesamteinkaufs
+
+Format für Warnung: {{"produkt": "Name", "issue": "Kurze Erklärung", "severity": "low|medium|high"}}
+
+Antwort: JSON-Array nur mit problematischen Produkten, oder leeres Array wenn alles ok"""
+        
+        message = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="mixtral-8x7b-32768",
+            temperature=0.2,
+            max_tokens=1024,
+        )
+        
+        response_text = message.choices[0].message.content.strip()
+        
+        try:
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if json_match:
+                issues = json.loads(json_match.group(0))
+                return {"anomalies": issues} if issues else {"anomalies": []}
+        except json.JSONDecodeError:
+            pass
+        
+        return {"anomalies": []}
+    except Exception as e:
+        print(f"Fehler bei Preisvalidierung: {e}")
+        return None
+
+def categorize_products(client, products: List[Dict]) -> Optional[List[Dict]]:
+    """
+    Kategorisiert Produkte intelligent
+    
+    Kategorien: Lebensmittel, Getränke, Haushalt, Kosmetik/Hygiene, Sonstiges
+    
+    Args:
+        client: Groq-Client
+        products: Liste von Produkten
+        
+    Returns:
+        Produkte mit Kategorien oder None
+    """
+    try:
+        if not client or not products:
+            return None
+        
+        products_text = "\n".join([f"- {p['produkt']}" for p in products])
+        
+        prompt = f"""Kategorisiere diese Produkte in Kategorien:
+
+{products_text}
+
+Kategorien: Lebensmittel, Getränke, Haushalt, Kosmetik/Hygiene, Sonstiges
+
+Format: {{"produkt": "Name", "kategorie": "Kategorie"}}
+
+Antwort: JSON-Array mit allen Produkten"""
+        
+        message = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="mixtral-8x7b-32768",
+            temperature=0.2,
+            max_tokens=1024,
+        )
+        
+        response_text = message.choices[0].message.content.strip()
+        
+        try:
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if json_match:
+                categorized = json.loads(json_match.group(0))
+                return categorized
+        except json.JSONDecodeError:
+            pass
+        
+        return None
+    except Exception as e:
+        print(f"Fehler bei Kategorisierung: {e}")
+        return None
+
+def suggest_split_distribution(client, products: List[Dict], person1: str, person2: str) -> Optional[Dict]:
+    """
+    Schlägt intelligente Aufteilung basierend auf Produktnamen vor
+    
+    Logik:
+    - Persönliche Hygieneprodukte: 100/0 oder 0/100
+    - Getränke/Snacks: Wahrscheinlich 50/50
+    - Luxusartikel: Häufig 100/0 oder 0/100
+    
+    Args:
+        client: Groq-Client
+        products: Liste von Produkten
+        person1: Name Bruder 1
+        person2: Name Bruder 2
+        
+    Returns:
+        Aufteilungsvorschläge oder None
+    """
+    try:
+        if not client or not products:
+            return None
+        
+        products_text = "\n".join([f"- {p['produkt']} (€{p['preis']:.2f})" for p in products])
+        
+        prompt = f"""Schlag eine intelligente Kostaufteilung vor zwischen {person1} und {person2}:
+
+{products_text}
+
+Logik:
+- Persönliche Hygieneprodukte: 100/0 oder 0/100 (vermute basierend auf Produktname oder sei neutral 50/50)
+- Getränke/Snacks: Meist 50/50
+- Luxusartikel: Oft 100/0 oder 0/100 (frag dich: würde der andere das kaufen?)
+- Haushalt: 50/50
+- Bei Zweifeln: 50/50
+
+Format: {{"produkt": "Name", "person1_percent": 50, "person2_percent": 50, "reasoning": "Kurze Begründung"}}
+
+Antwort: JSON-Array mit Vorschlägen für ALLE Produkte"""
+        
+        message = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="mixtral-8x7b-32768",
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        
+        response_text = message.choices[0].message.content.strip()
+        
+        try:
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if json_match:
+                suggestions = json.loads(json_match.group(0))
+                return {"suggestions": suggestions}
+        except json.JSONDecodeError:
+            pass
+        
+        return None
+    except Exception as e:
+        print(f"Fehler bei Aufteilungsvorschlag: {e}")
+        return None
+
+def generate_receipt_summary(client, shop: str, products: List[Dict], total: float) -> Optional[str]:
+    """
+    Generiert eine intelligente Zusammenfassung der Rechnung
+    
+    Args:
+        client: Groq-Client
+        shop: Shop-Name
+        products: Liste von Produkten
+        total: Gesamtbetrag
+        
+    Returns:
+        Textsummary oder None
+    """
+    try:
+        if not client or not products:
+            return None
+        
+        products_text = "\n".join([f"- {p['produkt']}: €{p['preis']:.2f}" for p in products])
+        
+        prompt = f"""Schreibe eine kurze, humorvolle 2-3 Satz Zusammenfassung dieses Einkaufs:
+
+Shop: {shop}
+Artikel ({len(products)}):
+{products_text}
+
+Gesamtbetrag: €{total:.2f}
+
+Beobachtungen: Welche Produkte fallen auf? Wirkt der Einkauf sinnvoll? Gibt es interessante Kombinationen?
+
+Schreibe informativ aber humorvoll, max 3 Sätze."""
+        
+        message = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="mixtral-8x7b-32768",
+            temperature=0.7,
+            max_tokens=256,
+        )
+        
+        return message.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Fehler bei Summary-Generierung: {e}")
         return None
 
 
