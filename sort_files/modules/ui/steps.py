@@ -9,45 +9,46 @@ from modules.file_handling import FileProcessor
 
 def render_step1(file_processor):
     """Rendert Schritt 1: Dateien"""
-    st.subheader("📥 1. Dateien")
-    
-    upload_option = st.radio(
-        "Quelle",
-        ["Hochladen", "Verzeichnis"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="upload_option_radio"
-    )
-    
-    uploaded_files = None
-    input_dir = None
-    
-    if upload_option == "Hochladen":
-        uploaded_files = st.file_uploader(
-            "Dateien auswählen",
-            accept_multiple_files=True,
-            type=[
-                "pdf", "docx", "txt", "md", "rtf",
-                "jpg", "jpeg", "png", "webp", "gif", "bmp",
-                "py", "java", "js", "html", "css", "cpp", "c",
-                "xlsx", "csv", "json", "xml",
-                "zip", "rar",
-                "mp3", "mp4", "wav"
-            ],
-            label_visibility="collapsed",
-            key="file_uploader"
+    with st.container():
+        st.subheader("📥 1. Dateien hochladen")
+        
+        upload_option = st.radio(
+            "Quelle wählen",
+            ["📤 Dateien hochladen", "📁 Verzeichnis"],
+            horizontal=True,
+            label_visibility="visible",
+            key="upload_option_radio"
         )
-    else:
-        input_dir = st.text_input(
-            "Verzeichnispfad",
-            value="",
-            placeholder="C:\\Pfad\\zum\\Ordner",
-            label_visibility="collapsed",
-            key="directory_input"
-        )
-    
-    if st.button("📥 Dateien extrahieren", type="primary", use_container_width=True, key="extract_files_button"):
-        _handle_file_extraction(file_processor, uploaded_files, input_dir)
+        
+        uploaded_files = None
+        input_dir = None
+        
+        if upload_option == "📤 Dateien hochladen":
+            uploaded_files = st.file_uploader(
+                "Dateien auswählen",
+                accept_multiple_files=True,
+                type=[
+                    "pdf", "docx", "txt", "md", "rtf",
+                    "jpg", "jpeg", "png", "webp", "gif", "bmp",
+                    "py", "java", "js", "html", "css", "cpp", "c",
+                    "xlsx", "csv", "json", "xml",
+                    "zip", "rar",
+                    "mp3", "mp4", "wav"
+                ],
+                label_visibility="collapsed",
+                key="file_uploader"
+            )
+        else:
+            input_dir = st.text_input(
+                "Verzeichnispfad eingeben",
+                value="",
+                placeholder="C:\\Pfad\\zum\\Ordner",
+                label_visibility="visible",
+                key="directory_input"
+            )
+        
+        if st.button("🚀 Dateien extrahieren", type="primary", use_container_width=True, key="extract_files_button"):
+            _handle_file_extraction(file_processor, uploaded_files, input_dir)
 
 def _handle_file_extraction(file_processor, uploaded_files, input_dir):
     """Behandelt Dateiextraktion"""
@@ -152,32 +153,40 @@ def _add_file_type_statistics(files_data):
 
 def render_step2(file_processor):
     """Rendert Schritt 2: KI-Analyse"""
-    st.subheader("🤖 2. KI-Analyse")
-    
-    files_data = get_state('files_data')
-    
-    if files_data:
-        files_count = files_data["metadata"]["total_files"]
-        st.success(f"✅ {files_count} Dateien verarbeitet")
+    with st.container():
+        st.subheader("🤖 2. KI-Analyse")
         
-        # VERBESSERTE DATEITYPEN-ANZEIGE
-        file_types_info = files_data["metadata"]
+        files_data = get_state('files_data')
         
-        # Zeige gruppierte Statistik
-        if "gruppiert" in file_types_info:
-            groups = file_types_info["gruppiert"]
+        if files_data:
+            files_count = files_data["metadata"]["total_files"]
             
-            st.write("**Dateitypen (gruppiert):**")
-            # In 2 Spalten anzeigen
-            col_g1, col_g2 = st.columns(2)
+            # Verbesserte Success-Anzeige mit Metrics
+            col_stats1, col_stats2 = st.columns(2)
             
-            with col_g1:
-                for i, (group, count) in enumerate(list(groups.items())[:len(groups)//2]):
-                    st.write(f"• {group}: **{count}**")
+            with col_stats1:
+                st.metric("📁 Dateien verarbeitet", files_count)
             
-            with col_g2:
-                for i, (group, count) in enumerate(list(groups.items())[len(groups)//2:]):
-                    st.write(f"• {group}: **{count}**")
+            # VERBESSERTE DATEITYPEN-ANZEIGE
+            file_types_info = files_data["metadata"]
+            
+            # Zeige gruppierte Statistik in schönerem Format
+            if "gruppiert" in file_types_info:
+                groups = file_types_info["gruppiert"]
+                total_typed = sum(groups.values())
+                
+                with col_stats2:
+                    st.metric("📊 Kategorien erkannt", len(groups))
+                
+                st.write("**Dateitypen (gruppiert):**")
+                
+                # Erstelle Fortschrittsbalken für jeden Dateityp
+                for group, count in sorted(groups.items(), key=lambda x: x[1], reverse=True):
+                    percentage = (count / total_typed * 100) if total_typed > 0 else 0
+                    st.write(f"**{group}**: {count} ({percentage:.0f}%)")
+                    st.progress(percentage / 100, text=f"{count}")
+        else:
+            st.info("👈 Bitte laden Sie zuerst Dateien in Schritt 1 hoch")
         
         # KI-Analyse Buttons
         api_key = get_state('api_key', "")
@@ -208,37 +217,98 @@ def render_step2(file_processor):
 
 def render_step3(file_processor):
     """Rendert Schritt 3: Dateiorganisation"""
-    st.subheader("📁 3. Dateien organisieren")
-    
-    categories = get_state('categories')
-    
-    if categories and 'results' in categories:
-        st.info(f"📂 {len(categories['results'])} Dateien kategorisiert")
+    with st.container():
+        st.subheader("📁 3. Dateien organisieren")
         
-        # Zielverzeichnis
-        target_dir = st.text_input(
-            "Zielverzeichnis",
-            value=str(Path.home() / "Desktop" / "SortierteDateien"),
-            placeholder="C:\\Users\\Name\\Desktop\\SortierteDateien",
-            key="target_dir_input"
-        )
+        files_data = get_state('files_data')
+        categories = get_state('categories')
         
-        col1, col2 = st.columns([2, 1])
+        if not files_data:
+            st.info("👈 Bitte laden Sie zuerst Dateien in Schritt 1 hoch")
+            return
         
-        with col1:
-            if target_dir and st.button("📂 Dateien sortieren", type="primary", use_container_width=True):
-                _handle_file_organization(file_processor, target_dir)
+        # Analyse-Buttons wenn noch keine Kategorien vorhanden
+        if not categories or 'results' not in categories:
+            st.write("**KI-Kategorisierung starten:**")
+            
+            col_api, col_detail = st.columns(2)
+            
+            with col_api:
+                api_key = st.text_input(
+                    "🔑 Groq API Key",
+                    type="password",
+                    value=get_state('api_key', ''),
+                    key="api_key_step3"
+                )
+                if api_key:
+                    update_state('api_key', api_key)
+            
+            with col_detail:
+                detail_level = st.selectbox(
+                    "📊 Detail-Level",
+                    ["wenig", "mittel", "viel"],
+                    index=["wenig", "mittel", "viel"].index(get_state('detail_level', 'mittel')),
+                    key="detail_level_step3"
+                )
+                update_state('detail_level', detail_level)
+            
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                if api_key:
+                    if st.button("🤖 Mit KI analysieren", type="primary", use_container_width=True, key="analyze_ai_button"):
+                        with st.spinner("⏳ KI analysiert deine Dateien..."):
+                            categories = analyze_with_groq(
+                                files_data["files"],
+                                api_key,
+                                detail_level
+                            )
+                            update_state('categories', categories)
+                            update_state('processing_step', 3)
+                            st.rerun()
+                else:
+                    st.button("🤖 API Key benötigt", type="primary", use_container_width=True, disabled=True)
+            
+            with col_btn2:
+                if st.button("📊 Schnelle Kategorien", use_container_width=True, key="simple_categories_button"):
+                    with st.spinner("Erstelle Kategorien..."):
+                        categories = create_content_based_fallback_categories(files_data["files"], detail_level)
+                        update_state('categories', categories)
+                        update_state('processing_step', 3)
+                        st.rerun()
         
-        with col2:
-            if st.button("🔄 Zurücksetzen", use_container_width=True):
-                update_state('categories', None)
-                update_state('processing_step', 2)
-                st.rerun()
-    
-    elif get_state('processing_step') >= 3:
-        st.info("⏳ Warte auf KI-Analyse")
-    else:
-        st.info("⏳ Dateien extrahieren und analysieren")
+        # Organisierungs-Interface wenn Kategorien vorhanden sind
+        if categories and 'results' in categories:
+            st.success(f"✅ {len(categories['results'])} Dateien kategorisiert")
+            
+            # Statistik
+            category_counts = {}
+            for cat in categories["results"]:
+                cat_name = cat["category"]
+                category_counts[cat_name] = category_counts.get(cat_name, 0) + 1
+            
+            st.metric("📂 Kategorien erstellt", len(category_counts))
+            
+            # Zielverzeichnis
+            default_target = str(Path.home() / "Desktop" / "SortierteDateien")
+            target_dir = st.text_input(
+                "📁 Zielverzeichnis",
+                value=default_target,
+                placeholder="C:\\Users\\Name\\Desktop\\SortierteDateien",
+                key="target_dir_input"
+            )
+            
+            col_org1, col_org2 = st.columns([2, 1])
+            
+            with col_org1:
+                if st.button("🚀 Dateien sortieren & organisieren", type="primary", use_container_width=True):
+                    _handle_file_organization(file_processor, target_dir)
+            
+            with col_org2:
+                if st.button("🔄 Neu analysieren", use_container_width=True):
+                    update_state('categories', None)
+                    update_state('processing_step', 2)
+                    st.rerun()
 
 def _handle_file_organization(file_processor, target_dir):
     """Behandelt Dateiorganisation"""
